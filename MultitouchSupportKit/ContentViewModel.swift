@@ -12,9 +12,11 @@ import SwiftUI
 final class ContentViewModel {
     private(set) var touchData = [MTContact]()
     private(set) var isListening: Bool = false
+    private(set) var aspectRatio: CGFloat = 1.0
 
     private let manager = MultitouchManager.shared
     private var currentDevice: MultitouchDevice? = MultitouchManager.shared.defaultDevice
+
     private var task: Task<(), Never>?
     private var isCurrentlyHovering: Bool = false
 
@@ -25,8 +27,6 @@ final class ContentViewModel {
 
             for await touches in device.contactFrames() {
                 self?.touchData = touches
-
-                print(touches.map(\.density))
             }
         }
     }
@@ -38,6 +38,11 @@ final class ContentViewModel {
 
     func start() {
         guard let device = currentDevice else { return }
+
+        if let dimensions = device.sensorDimensions {
+            aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
+        }
+
         if device.start() {
             isListening = true
         }

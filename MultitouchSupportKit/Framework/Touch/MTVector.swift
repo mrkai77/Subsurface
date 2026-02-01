@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct MTVector {
+public struct MTVector {
     let position: MTPoint
     let velocity: MTPoint
 }

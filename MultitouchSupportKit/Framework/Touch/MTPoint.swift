@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct MTPoint {
+public struct MTPoint {
     let x: Float
     let y: Float
 }

@@ -10,7 +10,7 @@ import Foundation
 public struct MTBaseWaveform {
     public let type: MTBaseWaveformType
     public let durationMS: Double
-    public let amplitude: Double // 100-255
+    public let amplitude: Double // 0-255
 
     public init(type: MTBaseWaveformType, durationMS: Double, amplitude: Double) {
         self.type = type
