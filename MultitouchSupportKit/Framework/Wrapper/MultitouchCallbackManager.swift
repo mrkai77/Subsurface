@@ -9,31 +9,27 @@ import Foundation
 
 final class MultitouchCallbackManager {
     static let shared = MultitouchCallbackManager()
-
-    private var contactHandlers: [MTDeviceRef: AsyncStream<[MTContact]>.Continuation] = [:]
-    private var pathHandlers: [MTDeviceRef: AsyncStream<(MTContact, Int, Int)>.Continuation] = [:]
-    private let lock = NSLock()
-
     private init() {}
 
-    func registerContactFrameCallback(for device: MTDeviceRef) -> AsyncStream<[MTContact]> {
-        let stream = AsyncStream<[MTContact]> { continuation in
-            lock.lock()
-            contactHandlers[device] = continuation
-            lock.unlock()
+    private var contactHandlers: [UInt: AsyncStream<[MTContact]>.Continuation] = [:]
+    private var pathHandlers: [UInt: AsyncStream<(MTContact, Int, Int)>.Continuation] = [:]
 
-            continuation.onTermination = { [weak self] _ in
-                self?.lock.lock()
-                self?.contactHandlers.removeValue(forKey: device)
-                self?.lock.unlock()
+    func registerContactFrameCallback(for device: MTDeviceRef) -> AsyncStream<[MTContact]> {
+        let deviceKey = key(for: device)
+
+        let stream = AsyncStream<[MTContact]> { continuation in
+            contactHandlers[deviceKey] = continuation
+
+            continuation.onTermination = { _ in
+                Task {
+                    await MultitouchCallbackManager.shared.removeContactHandler(key: deviceKey)
+                }
             }
         }
 
         let callback: MTContactCallbackFunction = { device, dataPtr, numTouches, _, _ in
-            MultitouchCallbackManager.shared.lock.lock()
-            defer { MultitouchCallbackManager.shared.lock.unlock() }
-
-            guard let continuation = MultitouchCallbackManager.shared.contactHandlers[device] else {
+            let deviceKey = MultitouchCallbackManager.shared.key(for: device)
+            guard let continuation = MultitouchCallbackManager.shared.contactHandlers[deviceKey] else {
                 return 0
             }
 
@@ -50,34 +46,32 @@ final class MultitouchCallbackManager {
     }
 
     func unregisterContactFrameCallback(for device: MTDeviceRef) {
-        lock.lock()
-        if let continuation = contactHandlers[device] {
+        let deviceKey = key(for: device)
+
+        if let continuation = contactHandlers[deviceKey] {
             continuation.finish()
-            contactHandlers.removeValue(forKey: device)
+            removeContactHandler(key: deviceKey)
         }
-        lock.unlock()
 
         MTUnregisterContactFrameCallback(device, nil)
     }
 
     func registerPathCallback(for device: MTDeviceRef) -> AsyncStream<(MTContact, Int, Int)> {
-        let stream = AsyncStream<(MTContact, Int, Int)> { continuation in
-            lock.lock()
-            pathHandlers[device] = continuation
-            lock.unlock()
+        let deviceKey = key(for: device)
 
-            continuation.onTermination = { [weak self] _ in
-                self?.lock.lock()
-                self?.pathHandlers.removeValue(forKey: device)
-                self?.lock.unlock()
+        let stream = AsyncStream<(MTContact, Int, Int)> { continuation in
+            pathHandlers[deviceKey] = continuation
+
+            continuation.onTermination = { _ in
+                Task {
+                    await MultitouchCallbackManager.shared.removePathHandler(key: deviceKey)
+                }
             }
         }
 
         let callback: MTPathCallbackFunction = { device, pathID, state, touchPtr in
-            MultitouchCallbackManager.shared.lock.lock()
-            defer { MultitouchCallbackManager.shared.lock.unlock() }
-
-            guard let continuation = MultitouchCallbackManager.shared.pathHandlers[device] else {
+            let deviceKey = MultitouchCallbackManager.shared.key(for: device)
+            guard let continuation = MultitouchCallbackManager.shared.pathHandlers[deviceKey] else {
                 return
             }
 
@@ -90,13 +84,26 @@ final class MultitouchCallbackManager {
     }
 
     func unregisterPathCallback(for device: MTDeviceRef) {
-        lock.lock()
-        if let continuation = pathHandlers[device] {
+        let deviceKey = key(for: device)
+        if let continuation = pathHandlers[deviceKey] {
             continuation.finish()
-            pathHandlers.removeValue(forKey: device)
+            removePathHandler(key: deviceKey)
         }
-        lock.unlock()
 
         MTUnregisterPathCallback(device, nil)
+    }
+    
+    // MARK: Private
+    
+    private nonisolated func key(for device: MTDeviceRef) -> UInt {
+        UInt(bitPattern: device)
+    }
+
+    private func removeContactHandler(key: UInt) {
+        contactHandlers.removeValue(forKey: key)
+    }
+    
+    private func removePathHandler(key: UInt) {
+        pathHandlers.removeValue(forKey: key)
     }
 }
