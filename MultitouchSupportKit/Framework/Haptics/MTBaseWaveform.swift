@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public struct MTBaseWaveform {
     public let type: MTBaseWaveformType
     public let durationMS: Double

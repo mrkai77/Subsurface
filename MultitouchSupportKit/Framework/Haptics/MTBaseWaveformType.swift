@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public enum MTBaseWaveformType: Int32 {
     case none = 0
     case gaussian = 1

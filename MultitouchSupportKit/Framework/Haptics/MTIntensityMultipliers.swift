@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public struct MTIntensityMultipliers {
     public let light: Float
     public let medium: Float

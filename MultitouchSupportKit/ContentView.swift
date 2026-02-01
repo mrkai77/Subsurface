@@ -43,8 +43,9 @@ struct ContentView: View {
                     context.draw(content.text, at: content.center, anchor: .center)
                 }
             }
-            .border(Color.primary)
             .aspectRatio(viewModel.aspectRatio, contentMode: .fit)
+            .overlay(.tertiary, in: .rect(cornerRadius: 12).stroke(lineWidth: 2))
+            .background(.quinary, in: .rect(cornerRadius: 12))
         }
         .padding()
         .onAppear {
@@ -81,11 +82,15 @@ struct ContentView: View {
             path.addLine(to: CGPoint(x: x + xVel, y: y - yVel))
         }
 
-        let state = Text(touch.contactState.description).bold()
-        let finger = Text("\(touch.hand?.description ?? "") \(touch.finger?.description ?? "") Finger").font(.caption)
+        let state = Text(touch.contactState.description)
+            .bold()
+        let finger = Text("\(touch.hand?.description ?? "Unknwon") \(touch.finger?.description ?? "Unknown") Finger")
+            .font(.caption)
+        let id = Text("ID \(touch.id)")
+            .font(.caption2)
 
-        let text = Text("\(state)\n\(finger)\n")
+        let text = Text("\(state)\n\(finger)\n\(id)")
 
-        return (ellipse, line, text, CGPoint(x: x, y: y - 25))
+        return (ellipse, line, text, CGPoint(x: x, y: y - 35))
     }
 }

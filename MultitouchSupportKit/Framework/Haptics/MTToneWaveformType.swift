@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public enum MTToneWaveformType: Int32 {
     case none = 0
     case sine = 1

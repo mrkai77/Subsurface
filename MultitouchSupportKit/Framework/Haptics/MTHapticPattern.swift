@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public struct MTHapticPattern {
     public let baseWaveform: MTBaseWaveform
     public let tones: [MTToneWaveform]

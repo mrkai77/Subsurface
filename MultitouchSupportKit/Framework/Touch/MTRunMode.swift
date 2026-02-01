@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public enum MTRunMode: Int32 {
     case verbose = 0
     case lessVerbose = 0x1000_0000

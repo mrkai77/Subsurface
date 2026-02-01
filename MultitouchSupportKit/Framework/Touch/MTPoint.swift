@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public struct MTPoint {
     let x: Float
     let y: Float

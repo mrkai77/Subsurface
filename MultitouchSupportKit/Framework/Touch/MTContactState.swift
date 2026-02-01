@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public enum MTContactState: Int32, CustomStringConvertible {
     case notTracking = 0
     case starting = 1

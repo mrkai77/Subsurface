@@ -92,9 +92,9 @@ final class MultitouchCallbackManager {
 
         MTUnregisterPathCallback(device, nil)
     }
-    
+
     // MARK: Private
-    
+
     private nonisolated func key(for device: MTDeviceRef) -> UInt {
         UInt(bitPattern: device)
     }
@@ -102,7 +102,7 @@ final class MultitouchCallbackManager {
     private func removeContactHandler(key: UInt) {
         contactHandlers.removeValue(forKey: key)
     }
-    
+
     private func removePathHandler(key: UInt) {
         pathHandlers.removeValue(forKey: key)
     }

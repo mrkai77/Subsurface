@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public enum MTContactHand: Int32, CustomStringConvertible {
     case left = -1
     case right = 1

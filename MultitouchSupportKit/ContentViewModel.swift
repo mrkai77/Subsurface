@@ -14,7 +14,7 @@ final class ContentViewModel {
     private(set) var isListening: Bool = false
     private(set) var aspectRatio: CGFloat = 1.0
 
-    private let manager = MultitouchManager.shared
+    @ObservationIgnored
     private var currentDevice: MultitouchDevice? = MultitouchManager.shared.defaultDevice
 
     private var task: Task<(), Never>?
@@ -23,8 +23,6 @@ final class ContentViewModel {
     func onAppear() {
         task = Task { [weak self] in
             guard let device = self?.currentDevice else { return }
-            print("Found device: \(device)")
-
             for await touches in device.contactFrames() {
                 self?.touchData = touches
             }

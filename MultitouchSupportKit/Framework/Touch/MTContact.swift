@@ -7,27 +7,28 @@
 
 import Foundation
 
-public struct MTContact {
+@frozen
+public struct MTContact: Identifiable {
     /// The frame ID in the same way a framerate works. Can be used to link different `MTTouch`es to the same event.
     public let frame: Int32
 
-    /// The timestamp of this touch's event. Seems to be the the amount of seconds since the device booted.
+    /// The timestamp of this touch's event.
     public let timestamp: Double
 
     /// Exact meaning unknown; seems to be consistent across events for each finger.
-    public let identifier: Int32
+    public let id: Int32
 
     /// The state of this touch.
     private let _contactState: Int32
-    var contactState: MTContactState { .init(rawValue: _contactState) ?? .outOfRange }
+    public var contactState: MTContactState { .init(rawValue: _contactState) ?? .outOfRange }
 
     /// The finger's ID from what looks to be 1 for the thumb all the way up to 5 for the fingers. Other may be considered as the palm.
     private let _fingerID: Int32
-    var finger: MTContactFinger? { .init(rawValue: _fingerID) }
+    public var finger: MTContactFinger? { .init(rawValue: _fingerID) }
 
     /// -1 for the left hand, +1 for the right hand. 0 for unknown values?
     private let _handID: Int32
-    var hand: MTContactHand? { .init(rawValue: _handID) }
+    public var hand: MTContactHand? { .init(rawValue: _handID) }
 
     /// Vector for this touch (normalized from 0...1)
     public let normalizedVector: MTVector
@@ -50,8 +51,8 @@ public struct MTContact {
     /// Vector in the trackpad coordinates?
     public let absoluteVector: MTVector
 
-    private let field14: Float
-    private let field15: Float
+    private let field14: Float // Always 0, likely padding
+    private let field15: Float // Always 0, likely padding
 
     /// The density of this touch. Ranges from 0 (no touch), 1 (normal-range touch), or higher for a higher-pressured touch.
     public let density: Float

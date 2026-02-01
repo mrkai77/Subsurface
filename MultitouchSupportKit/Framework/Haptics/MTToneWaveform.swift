@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public struct MTToneWaveform {
     public let type: MTToneWaveformType
     public let delayMS: Double

@@ -7,6 +7,7 @@
 
 import Foundation
 
+@frozen
 public enum MTContactFinger: Int32, CustomStringConvertible {
     case thumb = 1
     case index = 2
