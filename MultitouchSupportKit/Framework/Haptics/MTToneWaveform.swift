@@ -30,15 +30,8 @@ public struct MTToneWaveform {
     }
 
     func toDictionary() -> CFDictionary {
-        let typeString: CFString = switch type {
-        case .none: "None" as CFString
-        case .sine: "Sine" as CFString
-        case .square: "Square" as CFString
-        case .sawtooth: "Sawtooth" as CFString
-        }
-
-        return [
-            "Type" as CFString: typeString,
+        [
+            "Type" as CFString: type.rawValue as CFString,
             "DelayMS" as CFString: delayMS as CFNumber,
             "DurationMS" as CFString: durationMS as CFNumber,
             "Amplitude" as CFString: amplitude as CFNumber,

@@ -8,7 +8,7 @@
 import Foundation
 
 @frozen
-public struct MTVector {
+public struct MTVector: Equatable {
     let position: MTPoint
     let velocity: MTPoint
 }

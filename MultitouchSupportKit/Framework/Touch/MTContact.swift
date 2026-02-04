@@ -8,7 +8,7 @@
 import Foundation
 
 @frozen
-public struct MTContact: Identifiable {
+public struct MTContact: Identifiable, Equatable {
     /// The frame ID in the same way a framerate works. Can be used to link different `MTTouch`es to the same event.
     public let frame: Int32
 

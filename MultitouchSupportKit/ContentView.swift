@@ -28,21 +28,19 @@ struct ContentView: View {
                     }
                 }
             }
-
-            Canvas { context, size in
-                for touch in viewModel.touchData {
-                    let content = makeContent(touch: touch, size: size)
-
-                    context.fill(
-                        content.ellipse,
-                        with: .color(.cyan.opacity(Double(min(touch.totalCapacitance, 0.75))))
-                    )
-
-                    context.stroke(content.line, with: .color(.cyan), lineWidth: 2)
-
-                    context.draw(content.text, at: content.center, anchor: .center)
+            
+            GeometryReader { proxy in
+                ForEach(viewModel.touchData) { touch in
+                    view(for: touch, size: proxy.size)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.animation(.smooth(duration: 0.4)),
+                                removal: .opacity.animation(.smooth(duration: 0.2))
+                            )
+                        )
                 }
             }
+            .animation(.smooth(duration: 0.2), value: viewModel.touchData)
             .aspectRatio(viewModel.aspectRatio, contentMode: .fit)
             .overlay(.tertiary, in: .rect(cornerRadius: 12).stroke(lineWidth: 2))
             .background(.quinary, in: .rect(cornerRadius: 12))
@@ -56,41 +54,58 @@ struct ContentView: View {
         }
     }
 
-    private func makeContent(touch: MTContact, size: CGSize) -> (
-        ellipse: Path,
-        line: Path,
-        text: Text,
-        center: CGPoint
-    ) {
-        let x = Double(touch.normalizedVector.position.x) * size.width
-        let y = Double(1.0 - touch.normalizedVector.position.y) * size.height
+    private func view(for touch: MTContact, size parentSize: CGSize) -> some View {
+        let u = parentSize.width / 100.0
+        let origin = CGPoint(
+            x: CGFloat(touch.normalizedVector.position.x) * parentSize.width,
+            y: (1 - CGFloat(touch.normalizedVector.position.y)) * parentSize.height
+        )
+        let size = CGSize(
+            width: max(CGFloat(touch.majorAxis) * u, 5 * u),
+            height: max(CGFloat(touch.minorAxis) * u, 5 * u)
+        )
+        let velocity = CGSize(
+            width: CGFloat(touch.normalizedVector.velocity.x / 5) * parentSize.width,
+            height: CGFloat(touch.normalizedVector.velocity.y / 5) * parentSize.height
+        )
+        let velocityMag = CGFloat(
+            hypot(
+                touch.normalizedVector.velocity.x,
+                touch.normalizedVector.velocity.y
+            )
+        )
 
-        let xVel = Double(touch.normalizedVector.velocity.x / 5) * size.width
-        let yVel = Double(touch.normalizedVector.velocity.y / 5) * size.height
-
-        let u = size.width / 100.0
-        let w = Double(touch.majorAxis) * u
-        let h = Double(touch.minorAxis) * u
-
-        let ellipse = Path(ellipseIn: CGRect(x: -0.5 * w, y: -0.5 * h, width: w, height: h))
-            .rotation(.radians(Double(-touch.angle)), anchor: .topLeading)
-            .offset(x: x, y: y)
-            .path(in: CGRect(origin: .zero, size: size))
-
-        let line = Path { path in
-            path.move(to: CGPoint(x: x, y: y))
-            path.addLine(to: CGPoint(x: x + xVel, y: y - yVel))
-        }
-
-        let state = Text(touch.contactState.description)
-            .bold()
-        let finger = Text("\(touch.hand?.description ?? "Unknwon") \(touch.finger?.description ?? "Unknown") Finger")
-            .font(.caption)
-        let id = Text("ID \(touch.id)")
-            .font(.caption2)
-
-        let text = Text("\(state)\n\(finger)\n\(id)")
-
-        return (ellipse, line, text, CGPoint(x: x, y: y - 35))
+        return Ellipse()
+            .rotation(.radians(CGFloat(-touch.angle)))
+            .frame(
+                width: size.width,
+                height: size.height
+            )
+            .foregroundStyle(.cyan.opacity(max(CGFloat(touch.pressure / 100), 0.4)))
+            .overlay {
+                Path { path in
+                    path.move(
+                        to: CGPoint(
+                            x: size.width / 2,
+                            y: size.height / 2
+                        )
+                    )
+                    path.addLine(
+                        to: CGPoint(
+                            x: (size.width / 2) + velocity.width,
+                            y: (size.height / 2) - velocity.height
+                        )
+                    )
+                }
+                .stroke(style: .init(lineWidth: 4, lineCap: .round))
+                .foregroundStyle(.yellow.opacity(max(velocityMag, 0.5)))
+            }
+            .offset(
+                x: origin.x,
+                y: origin.y
+            )
+            .fixedSize()
+            .frame(width: 0, height: 0, alignment: .center)
     }
 }
+

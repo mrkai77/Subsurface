@@ -8,9 +8,9 @@
 import Foundation
 
 @frozen
-public enum MTToneWaveformType: Int32 {
-    case none = 0
-    case sine = 1
-    case square = 2
-    case sawtooth = 3
+public enum MTToneWaveformType: String {
+    case none = "None"
+    case sine = "Sine"
+    case square = "Square"
+    case sawtooth = "Sawtooth"
 }

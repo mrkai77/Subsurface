@@ -21,7 +21,7 @@ public struct MTBaseWaveform {
 
     func toDictionary() -> CFDictionary {
         [
-            "Type" as CFString: type == .gaussian ? "Gaussian" as CFString : "None" as CFString,
+            "Type" as CFString: type.rawValue as CFString,
             "DurationMS" as CFString: durationMS as CFNumber,
             "Amplitude" as CFString: amplitude as CFNumber
         ] as CFDictionary

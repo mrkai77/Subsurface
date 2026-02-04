@@ -8,7 +8,7 @@
 import Foundation
 
 @frozen
-public struct MTPoint {
+public struct MTPoint: Equatable {
     let x: Float
     let y: Float
 }
