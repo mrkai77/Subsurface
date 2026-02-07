@@ -1,0 +1,41 @@
+//
+//  MTToneWaveform.swift
+//  Subtrack
+//
+//  Created by Kai Azim on 2026-01-31.
+//
+
+import Foundation
+
+@frozen
+public struct MTToneWaveform {
+    public let type: MTToneWaveformType
+    public let delayMS: Double
+    public let durationMS: Double
+    public let amplitude: Double
+    public let frequencykHz: Double
+
+    public init(
+        type: MTToneWaveformType,
+        delayMS: Double = 0.0,
+        durationMS: Double,
+        amplitude: Double,
+        frequencykHz: Double
+    ) {
+        self.type = type
+        self.delayMS = delayMS
+        self.durationMS = durationMS
+        self.amplitude = amplitude
+        self.frequencykHz = frequencykHz
+    }
+
+    func toDictionary() -> CFDictionary {
+        [
+            "Type" as CFString: type.rawValue as CFString,
+            "DelayMS" as CFString: delayMS as CFNumber,
+            "DurationMS" as CFString: durationMS as CFNumber,
+            "Amplitude" as CFString: amplitude as CFNumber,
+            "FrequencykHz" as CFString: frequencykHz as CFNumber
+        ] as CFDictionary
+    }
+}
