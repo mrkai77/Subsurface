@@ -9,6 +9,6 @@ import Foundation
 
 @frozen
 public struct MTVector: Equatable {
-    let position: MTPoint
-    let velocity: MTPoint
+    public let position: MTPoint
+    public let velocity: MTPoint
 }

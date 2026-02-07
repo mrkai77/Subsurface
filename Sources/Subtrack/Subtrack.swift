@@ -1,5 +1,5 @@
 //
-//  SubtrackManager.swift
+//  Subtrack.swift
 //  Subtrack
 //
 //  Created by Kai Azim on 2026-01-31.
@@ -10,7 +10,7 @@ import Scribe
 
 /// Main entry point for accessing multitouch devices
 @Loggable(style: .static)
-public enum SubtrackManager {
+public enum Subtrack {
     public static var isAvailable: Bool {
         guard let MTDeviceIsAvailable else {
             log.warn("Failed to load MTDeviceIsAvailable")

@@ -47,6 +47,7 @@ final class SubtrackCallbackManager {
         }
 
         MTRegisterContactFrameCallback(device, callback)
+        log.debug("Registered contact frame callback for \(deviceKey)")
 
         return stream
     }
@@ -65,6 +66,7 @@ final class SubtrackCallbackManager {
         }
 
         MTUnregisterContactFrameCallback(device, nil)
+        log.debug("Unregistered contact frame callback for \(deviceKey)")
     }
 
     func registerPathCallback(for device: MTDeviceRef) -> AsyncStream<(MTContact, Int, Int)> {
@@ -94,6 +96,8 @@ final class SubtrackCallbackManager {
         }
 
         MTRegisterPathCallback(device, callback)
+        log.debug("Registered path callback for \(deviceKey)")
+
         return stream
     }
 
@@ -110,6 +114,7 @@ final class SubtrackCallbackManager {
         }
 
         MTUnregisterPathCallback(device, nil)
+        log.debug("Unregistered path callback for \(deviceKey)")
     }
 
     // MARK: Private

@@ -9,6 +9,6 @@ import Foundation
 
 @frozen
 public struct MTPoint: Equatable {
-    let x: Float
-    let y: Float
+    public let x: Float
+    public let y: Float
 }

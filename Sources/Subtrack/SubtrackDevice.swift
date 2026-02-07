@@ -34,11 +34,11 @@ public final class SubtrackDevice: @unchecked Sendable {
     // MARK: - Device Control
 
     @discardableResult
-    public func start(mode: MTRunMode = .verbose) -> Bool {
-        let error = MTDeviceStart?(deviceRef, mode.rawValue)
+    public func start() -> Bool {
+        let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
 
         if error != noErr {
-            log.error("Error starting device with mode '\(mode)': \(error ?? -1)")
+            log.error("Error starting device: \(error ?? -1)")
             return false
         }
 
@@ -50,19 +50,20 @@ public final class SubtrackDevice: @unchecked Sendable {
     @discardableResult
     public func stop() -> Bool {
         removeSleepWakeObservers()
+        removeContactFrameCallback()
+
         return MTDeviceStop?(deviceRef) == noErr
     }
 
     private func restart() async {
-        guard autoRestartOnWake else { return }
-        guard wakeObserver != nil else { return }
+        guard autoRestartOnWake, wakeObserver != nil else { return }
 
         log.info("Restarting device after wake")
 
         // Stop device (without removing observers)
         _ = MTDeviceStop?(deviceRef)
 
-        try? await Task.sleep(for: .milliseconds(500))
+        try? await Task.sleep(for: .seconds(1))
 
         // Restart device
         let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
@@ -294,6 +295,60 @@ public final class SubtrackDevice: @unchecked Sendable {
             return nil
         }
         return serial as String
+    }
+
+    /// Thanks  to https://github.com/KrishKrosh/OpenMultitouchSupport
+    public var name: String {
+        switch familyID {
+        case 98, 99, 100:
+            // Built-in trackpad (older models)
+            return "MacBook Trackpad"
+
+        case 101:
+            // Retina MacBook Pro trackpad
+            return "MacBook Trackpad"
+
+        case 102:
+            // Retina MacBook with Force Touch trackpad (2015)
+            return "MacBook Trackpad"
+
+        case 103:
+            // Retina MacBook Pro 13" with Force Touch trackpad (2015)
+            return "MacBook Trackpad"
+
+        case 104:
+            // MacBook trackpad variant
+            return "MacBook Trackpad"
+
+        case 105:
+            // MacBook with Touch Bar
+            return "Touch Bar"
+
+        case 108:
+            // M1 Macbook Pro Trackpad
+            return "MacBook Trackpad"
+
+        case 109:
+            // M4 Macbook Pro Trackpad
+            return "MacBook Trackpad"
+
+        case 112, 113:
+            // Magic Mouse & Magic Mouse 2/3
+            return "Magic Mouse"
+
+        case 128, 129, 130:
+            // Magic Trackpad, Magic Trackpad 2, Magic Trackpad 3
+            return "Magic Trackpad"
+
+        default:
+            // Touch Bar is very wide and narrow (>1000 width, <100 height)
+            if let surfaceDimensions = sensorSurfaceDimensions,
+               surfaceDimensions.width > 1000, surfaceDimensions.height < 100 {
+                return "Unknown Touch Bar (familyID: \(familyID))"
+            }
+
+            return "Unknown Device (familyID: \(familyID))"
+        }
     }
 
     // MARK: - Force Touch & Click Control
