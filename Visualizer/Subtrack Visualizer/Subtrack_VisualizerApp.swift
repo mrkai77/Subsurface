@@ -13,5 +13,6 @@ struct Subtrack_VisualizerApp: App {
         WindowGroup {
             ContentView()
         }
+        .windowLevel(.floating)
     }
 }

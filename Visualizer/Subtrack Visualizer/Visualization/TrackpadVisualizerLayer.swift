@@ -11,7 +11,6 @@ import Subtrack
 /// CALayer-based trackpad visualizer for high-performance rendering
 final class TrackpadVisualizerLayer: CALayer {
     private var touchLayers: [Int32: TouchLayer] = [:]
-    private var velocityLayers: [Int32: VelocityLayer] = [:]
 
     var showVelocity: Bool = false
     var showContactInfo: Bool = false
@@ -58,28 +57,9 @@ final class TrackpadVisualizerLayer: CALayer {
             touchLayer.update(
                 contact: contact,
                 canvasSize: bounds.size,
-                showContactInfo: showContactInfo
+                showContactInfo: showContactInfo,
+                showVelocity: showVelocity
             )
-
-            // Handle velocity
-            if showVelocity {
-                let velocityLayer: VelocityLayer
-                if let existing = velocityLayers[contact.id] {
-                    velocityLayer = existing
-                } else {
-                    velocityLayer = VelocityLayer()
-                    velocityLayers[contact.id] = velocityLayer
-                    addSublayer(velocityLayer)
-                }
-
-                velocityLayer.update(contact: contact, canvasSize: bounds.size)
-            } else {
-                // Remove velocity layer if disabled
-                if let layer = velocityLayers[contact.id] {
-                    layer.removeFromSuperlayer()
-                    velocityLayers.removeValue(forKey: contact.id)
-                }
-            }
         }
 
         // Remove layers for contacts that are no longer active
@@ -87,9 +67,6 @@ final class TrackpadVisualizerLayer: CALayer {
         for id in inactiveIDs {
             touchLayers[id]?.removeFromSuperlayer()
             touchLayers.removeValue(forKey: id)
-
-            velocityLayers[id]?.removeFromSuperlayer()
-            velocityLayers.removeValue(forKey: id)
         }
 
         CATransaction.commit()

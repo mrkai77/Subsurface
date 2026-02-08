@@ -28,9 +28,6 @@ final class ContentViewModel {
 
     private var task: Task<(), Never>?
     private var monitor: SubtrackMonitor?
-    private var lastUpdateTime: TimeInterval = 0
-    private let updateInterval: TimeInterval = 1.0 / 60.0 // 60 FPS
-    private var lastContactStates: [Int32: Int32] = [:] // Track contact states by ID
 
     func start() {
         switch trackingMode {
@@ -50,33 +47,6 @@ final class ContentViewModel {
         }
     }
 
-    private func shouldUpdate(contacts: [MTContact], now: TimeInterval) -> Bool {
-        // Build current state map
-        let currentStates = Dictionary(uniqueKeysWithValues: contacts.map { ($0.id, $0.contactState.rawValue) })
-
-        // Always update if contact count changed
-        if currentStates.count != lastContactStates.count {
-            return true
-        }
-
-        // Check for state changes
-        for (id, state) in currentStates {
-            if lastContactStates[id] != state {
-                return true
-            }
-        }
-
-        // Check for removed contacts
-        for id in lastContactStates.keys {
-            if currentStates[id] == nil {
-                return true
-            }
-        }
-
-        // Otherwise, throttle based on time
-        return now - lastUpdateTime >= updateInterval
-    }
-
     private func startIndividual() {
         guard let device = selectedDevice else { return }
 
@@ -84,17 +54,13 @@ final class ContentViewModel {
         task = Task { [weak self] in
             guard let device = self?.selectedDevice else { return }
             for await touches in device.contactFrames() {
-                guard !Task.isCancelled else { return }
+                autoreleasepool {
+                    guard !Task.isCancelled else { return }
+                    guard let self else { return }
 
-                let now = CACurrentMediaTime()
-                guard let self, shouldUpdate(contacts: touches, now: now) else {
-                    continue
+                    touchData = touches
+                    currentDevice = device
                 }
-
-                lastUpdateTime = now
-                lastContactStates = Dictionary(uniqueKeysWithValues: touches.map { ($0.id, $0.contactState.rawValue) })
-                touchData = touches
-                currentDevice = device
             }
         }
 
@@ -109,8 +75,6 @@ final class ContentViewModel {
         task?.cancel()
         touchData = []
         currentDevice = nil
-        lastUpdateTime = 0
-        lastContactStates = [:]
 
         if device.stop() {
             isListening = false
@@ -126,25 +90,18 @@ final class ContentViewModel {
             newMonitor.start()
 
             for await (device, touches) in newMonitor.contacts() {
-                guard !Task.isCancelled else { return }
+                autoreleasepool {
+                    guard !Task.isCancelled else { return }
+                    guard let self else { return }
 
-                let now = CACurrentMediaTime()
-                guard let self, shouldUpdate(contacts: touches, now: now) else {
-                    continue
-                }
+                    self.touchData = touches
 
-                lastUpdateTime = now
-                lastContactStates = Dictionary(uniqueKeysWithValues: touches.map { ($0.id, $0.contactState.rawValue) })
+                    if self.currentDevice?.deviceID != device.deviceID {
+                        self.currentDevice = device
 
-                // Always update touch data
-                touchData = touches
-
-                // Only update device and aspect ratio if device actually changed
-                if currentDevice?.deviceID != device.deviceID {
-                    currentDevice = device
-
-                    if let dimensions = device.sensorDimensions {
-                        aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
+                        if let dimensions = device.sensorDimensions {
+                            self.aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
+                        }
                     }
                 }
             }
@@ -159,8 +116,6 @@ final class ContentViewModel {
         monitor = nil
         touchData = []
         currentDevice = nil
-        lastUpdateTime = 0
-        lastContactStates = [:]
         isListening = false
     }
 

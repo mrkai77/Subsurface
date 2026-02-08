@@ -12,6 +12,7 @@ import Subtrack
 final class TouchLayer: CALayer {
     private let ellipseLayer = CAShapeLayer()
     private let textLayer = CATextLayer()
+    private var velocityLayer: VelocityLayer?
 
     override init() {
         super.init()
@@ -31,7 +32,7 @@ final class TouchLayer: CALayer {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(contact: MTContact, canvasSize: CGSize, showContactInfo: Bool) {
+    func update(contact: MTContact, canvasSize: CGSize, showContactInfo: Bool, showVelocity: Bool) {
         let u = canvasSize.width / 100.0
 
         let x = CGFloat(contact.normalizedVector.position.x) * canvasSize.width
@@ -40,18 +41,17 @@ final class TouchLayer: CALayer {
         let w = CGFloat(contact.majorAxis) * u
         let h = CGFloat(contact.minorAxis) * u
 
-        // Create ellipse path
-        let rect = CGRect(x: x - w * 0.5, y: y - h * 0.5, width: w, height: h)
-        let path = CGMutablePath()
+        // Update ellipse path only if size changed
+        let ellipseRect = CGRect(x: -w * 0.5, y: -h * 0.5, width: w, height: h)
+        if ellipseLayer.path == nil || ellipseLayer.bounds.size != ellipseRect.size {
+            ellipseLayer.path = CGPath(ellipseIn: ellipseRect, transform: nil)
+            ellipseLayer.bounds = ellipseRect
+        }
 
-        // Apply rotation transform
-        let transform = CGAffineTransform(translationX: x, y: y)
-            .rotated(by: CGFloat(contact.angle))
-            .translatedBy(x: -x, y: -y)
+        // Use layer transforms for position and rotation (GPU-accelerated)
+        ellipseLayer.position = CGPoint(x: x, y: y)
+        ellipseLayer.setAffineTransform(CGAffineTransform(rotationAngle: CGFloat(contact.angle)))
 
-        path.addEllipse(in: rect, transform: transform)
-
-        ellipseLayer.path = path
         ellipseLayer.fillColor = NSColor.systemBlue.withAlphaComponent(
             max(CGFloat(contact.pressure / 100), 0.4)
         ).cgColor
@@ -72,6 +72,19 @@ final class TouchLayer: CALayer {
             )
         } else {
             textLayer.isHidden = true
+        }
+
+        // Velocity arrow
+        if showVelocity {
+            if velocityLayer == nil {
+                let newVelocityLayer = VelocityLayer()
+                velocityLayer = newVelocityLayer
+                addSublayer(newVelocityLayer)
+            }
+            velocityLayer?.update(contact: contact, canvasSize: canvasSize)
+        } else {
+            velocityLayer?.removeFromSuperlayer()
+            velocityLayer = nil
         }
     }
 }
