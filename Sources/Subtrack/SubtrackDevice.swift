@@ -18,8 +18,103 @@ public final class SubtrackDevice: @unchecked Sendable {
     private var wakeObserver: NSObjectProtocol?
     public var autoRestartOnWake: Bool = true
 
-    init(deviceRef: MTDeviceRef) {
+    private init(deviceRef: MTDeviceRef) {
         self.deviceRef = deviceRef
+    }
+
+    // MARK: - Static Properties
+
+    /// Check if multitouch support is available on the system
+    public static var isAvailable: Bool {
+        guard let MTDeviceIsAvailable else {
+            Log.warn("Failed to load MTDeviceIsAvailable", category: logCategory)
+            return false
+        }
+
+        return MTDeviceIsAvailable()
+    }
+
+    /// Get the default multitouch device (usually the built-in trackpad)
+    public static var defaultDevice: SubtrackDevice? {
+        guard let MTDeviceCreateDefault else {
+            Log.warn("Failed to load MTDeviceCreateDefault", category: logCategory)
+            return nil
+        }
+
+        guard let deviceRef = MTDeviceCreateDefault() else {
+            Log.warn("Failed to create default device with MTDeviceCreateDefault", category: Self.logCategory)
+            return nil
+        }
+
+        return SubtrackDevice(deviceRef: deviceRef)
+    }
+
+    /// Get all available multitouch devices
+    public static var allDevices: [SubtrackDevice] {
+        guard let MTDeviceCreateList else {
+            Log.warn("Failed to load MTDeviceCreateList", category: logCategory)
+            return []
+        }
+
+        guard let deviceList = MTDeviceCreateList()?.takeUnretainedValue() else {
+            Log.warn("Failed to load available devices with MTDeviceCreateList", category: Self.logCategory)
+            return []
+        }
+
+        let count = CFArrayGetCount(deviceList)
+        var devices: [MTDeviceRef] = []
+        devices.reserveCapacity(count)
+
+        for i in 0 ..< count {
+            let raw = CFArrayGetValueAtIndex(deviceList, i) // UnsafeRawPointer!
+            guard let raw else { continue }
+
+            // The element itself is the MTDeviceRef pointer value.
+            let deviceRef = UnsafeMutableRawPointer(mutating: raw)
+            devices.append(deviceRef)
+        }
+
+        return devices.map { SubtrackDevice(deviceRef: $0) }
+    }
+
+    /// Get the current absolute time from the multitouch framework
+    public static var currentAbsoluteTime: Double {
+        guard let MTAbsoluteTimeGetCurrent else {
+            Log.warn("Failed to load MTAbsoluteTimeGetCurrent", category: logCategory)
+            return 0
+        }
+
+        return MTAbsoluteTimeGetCurrent()
+    }
+
+    // MARK: - Initializers
+
+    /// Create a device from a device ID
+    public convenience init?(deviceID: UInt64) {
+        guard let MTDeviceCreateFromDeviceID else {
+            Log.warn("Failed to load MTDeviceCreateFromDeviceID", category: Self.logCategory)
+            return nil
+        }
+
+        guard let deviceRef = MTDeviceCreateFromDeviceID(deviceID) else {
+            return nil
+        }
+
+        self.init(deviceRef: deviceRef)
+    }
+
+    /// Create a device from an IOKit service
+    public convenience init?(service: io_service_t) {
+        guard let MTDeviceCreateFromService else {
+            Log.warn("Failed to load MTDeviceCreateFromService", category: Self.logCategory)
+            return nil
+        }
+
+        guard let deviceRef = MTDeviceCreateFromService(service) else {
+            return nil
+        }
+
+        self.init(deviceRef: deviceRef)
     }
 
     deinit {
@@ -189,6 +284,14 @@ public final class SubtrackDevice: @unchecked Sendable {
     }
 
     // MARK: - Device Information
+
+    public var service: io_service_t? {
+        guard let MTDeviceGetService else {
+            log.warn("Failed to load MTDeviceGetService")
+            return nil
+        }
+        return MTDeviceGetService(deviceRef)
+    }
 
     public var sensorSurfaceDimensions: (width: Int, height: Int)? {
         guard let MTDeviceGetSensorSurfaceDimensions else {
