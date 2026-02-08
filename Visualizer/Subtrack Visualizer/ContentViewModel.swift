@@ -18,13 +18,16 @@ enum TrackingMode {
 final class ContentViewModel {
     private(set) var touchData = [MTContact]()
     private(set) var isListening: Bool = false
-    private(set) var aspectRatio: CGFloat = 1.0
+    private(set) var aspectRatio: CGFloat = 24.0 / 18.0
     private(set) var currentDevice: SubtrackDevice?
 
     private(set) var selectedDevice: SubtrackDevice?
     private(set) var availableDevicesByID: [UInt64: SubtrackDevice] = [:]
 
-    var trackingMode: TrackingMode = .individual
+    var trackingMode: TrackingMode = .global
+    var showVelocity: Bool = false
+    var showContactInfo: Bool = false
+    var enablePalmRejection: Bool = true
 
     private var task: Task<(), Never>?
     private var monitor: SubtrackMonitor?
@@ -57,8 +60,7 @@ final class ContentViewModel {
                 guard !Task.isCancelled else { return }
                 guard let self else { return }
 
-                self.touchData = touches
-                self.currentDevice = device
+                touchData = touches
             }
         }
 
@@ -91,13 +93,13 @@ final class ContentViewModel {
                 guard !Task.isCancelled else { return }
                 guard let self else { return }
 
-                self.touchData = touches
+                touchData = touches
 
-                if self.currentDevice?.deviceID != device.deviceID {
-                    self.currentDevice = device
+                if currentDevice?.deviceID != device.deviceID {
+                    currentDevice = device
 
                     if let dimensions = device.sensorDimensions {
-                        self.aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
+                        aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
                     }
                 }
             }

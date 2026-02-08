@@ -151,7 +151,7 @@ public final class SubtrackMonitor: @unchecked Sendable {
             log.warn("Contact stream already exists")
         }
 
-        let stream = AsyncStream<(SubtrackDevice, [MTContact])> { continuation in
+        let stream = AsyncStream<(SubtrackDevice, [MTContact])>(bufferingPolicy: .bufferingNewest(1)) { continuation in
             self.contactContinuation = continuation
 
             continuation.onTermination = { _ in

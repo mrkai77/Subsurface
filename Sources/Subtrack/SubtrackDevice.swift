@@ -12,13 +12,13 @@ import Scribe
 @Loggable
 public final class SubtrackDevice: @unchecked Sendable {
     private let deviceRef: MTDeviceRef
-    private var contactStream: AsyncStream<[MTContact]>?
-    private var pathStream: AsyncStream<(MTContact, Int, Int)>?
 
-    private var wakeObserver: NSObjectProtocol?
+    private var contactStream: AsyncStream<[MTContact]>?
+    var contactContinuation: AsyncStream<[MTContact]>.Continuation?
 
     /// Controls whether the device should automatically restart after the system wakes from sleep
     public var autoRestartOnWake: Bool = true
+    private var wakeObserver: NSObjectProtocol?
 
     private init(deviceRef: MTDeviceRef) {
         self.deviceRef = deviceRef
@@ -73,7 +73,7 @@ public final class SubtrackDevice: @unchecked Sendable {
 
             // The element itself is the MTDeviceRef pointer value.
             let deviceRef = UnsafeMutableRawPointer(mutating: raw)
-            
+
             // We will manually release the device ref in the deinit
             _ = Unmanaged<CFTypeRef>.fromOpaque(deviceRef).retain()
 
@@ -128,7 +128,6 @@ public final class SubtrackDevice: @unchecked Sendable {
             stop()
         }
         removeContactFrameCallback()
-        removePathCallback()
         MTDeviceRelease?(deviceRef)
     }
 
@@ -549,7 +548,29 @@ public final class SubtrackDevice: @unchecked Sendable {
             return existing
         }
 
-        let stream = SubtrackCallbackManager.shared.registerContactFrameCallback(for: deviceRef)
+        // Use buffering policy that keeps only the newest value to prevent event queue buildup
+        let stream = AsyncStream<[MTContact]>(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            self.contactContinuation = continuation
+
+            continuation.onTermination = { _ in
+                self.contactContinuation = nil
+            }
+        }
+
+        guard let MTRegisterContactFrameCallbackWithRefcon else {
+            log.warn("Failed to load MTRegisterContactFrameCallbackWithRefcon")
+            return stream
+        }
+
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
+        let success = MTRegisterContactFrameCallbackWithRefcon(deviceRef, contactFrameCallback, refcon)
+
+        if success {
+            log.debug("Registered contact frame callback")
+        } else {
+            log.error("Failed to register contact frame callback")
+        }
+
         contactStream = stream
         return stream
     }
@@ -557,26 +578,20 @@ public final class SubtrackDevice: @unchecked Sendable {
     /// Remove contact frame callback
     public func removeContactFrameCallback() {
         guard contactStream != nil else { return }
-        SubtrackCallbackManager.shared.unregisterContactFrameCallback(for: deviceRef)
-        contactStream = nil
-    }
 
-    /// Create an async stream of individual touch path events
-    public func pathEvents() -> AsyncStream<(MTContact, Int, Int)> {
-        if let existing = pathStream {
-            return existing
+        if let continuation = contactContinuation {
+            continuation.finish()
+            contactContinuation = nil
         }
 
-        let stream = SubtrackCallbackManager.shared.registerPathCallback(for: deviceRef)
-        pathStream = stream
-        return stream
-    }
+        guard let MTUnregisterContactFrameCallback else {
+            log.warn("Failed to load MTUnregisterContactFrameCallback")
+            return
+        }
 
-    /// Remove path event callback
-    public func removePathCallback() {
-        guard pathStream != nil else { return }
-        SubtrackCallbackManager.shared.unregisterPathCallback(for: deviceRef)
-        pathStream = nil
+        MTUnregisterContactFrameCallback(deviceRef, nil)
+        log.debug("Unregistered contact frame callback")
+        contactStream = nil
     }
 
     // MARK: - Haptics
@@ -600,4 +615,19 @@ extension SubtrackDevice: CustomStringConvertible {
     public var description: String {
         "MultitouchDevice(isRunning: \(isRunning), familyID: \(familyID ?? -1), version: \(version ?? -1)))"
     }
+}
+
+// MARK: - C Frame Callback
+
+let contactFrameCallback: MTFrameCallbackFunctionWithRefcon = { _, dataPtr, numTouches, _, _, refcon in
+    let subtrackDevice = Unmanaged<SubtrackDevice>.fromOpaque(refcon).takeUnretainedValue()
+    guard let continuation = subtrackDevice.contactContinuation else { return }
+
+    let touches = UnsafeBufferPointer(
+        start: dataPtr.assumingMemoryBound(to: MTContact.self),
+        count: Int(numTouches)
+    )
+    let touchesCopy = Array(touches)
+
+    continuation.yield(touchesCopy)
 }

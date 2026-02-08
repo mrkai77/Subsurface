@@ -13,6 +13,7 @@ struct Subtrack_VisualizerApp: App {
         WindowGroup {
             ContentView()
         }
+        .windowResizability(.contentSize)
         .windowLevel(.floating)
     }
 }
