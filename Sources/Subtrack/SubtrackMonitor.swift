@@ -182,6 +182,12 @@ public final class SubtrackMonitor: @unchecked Sendable {
                 continue
             }
 
+            if let dimensions = device.sensorSurfaceDimensions,
+               dimensions.width < 2500 || dimensions.height < 2500 {
+                log.debug("Skipping potential non-trackpad device: \(device.name) - dimensions: \(Double(dimensions.width) / 1000)x\(Double(dimensions.height) / 1000)cm")
+                continue
+            }
+
             log.info("Device connected: \(device.name) (ID: \(deviceID))")
 
             // Store the IOService mapping for removal tracking

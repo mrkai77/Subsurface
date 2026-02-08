@@ -9,6 +9,7 @@ import Foundation
 import IOKit
 import Scribe
 
+/// Represents a haptic actuator for a multitouch device
 @Loggable
 public final class SubtrackActuator {
     private let actuatorRef: MTActuatorRef
@@ -23,6 +24,7 @@ public final class SubtrackActuator {
         }
     }
 
+    /// Indicates whether the actuator is currently open and ready to trigger haptic feedback
     public var isOpen: Bool {
         guard let MTActuatorIsOpen else {
             log.warn("Failed to load MTActuatorIsOpen")
@@ -31,6 +33,8 @@ public final class SubtrackActuator {
         return MTActuatorIsOpen(actuatorRef)
     }
 
+    /// Opens the actuator for use
+    /// - Returns: `true` if the actuator opened successfully, `false` otherwise
     @discardableResult
     public func open() -> Bool {
         guard let MTActuatorOpen else {
@@ -41,6 +45,8 @@ public final class SubtrackActuator {
         return MTActuatorOpen(actuatorRef) == kIOReturnSuccess
     }
 
+    /// Closes the actuator
+    /// - Returns: `true` if the actuator closed successfully, `false` otherwise
     @discardableResult
     public func close() -> Bool {
         guard let MTActuatorClose else {
@@ -51,6 +57,11 @@ public final class SubtrackActuator {
         return MTActuatorClose(actuatorRef) == kIOReturnSuccess
     }
 
+    /// Triggers a haptic feedback pattern
+    /// - Parameters:
+    ///   - pattern: The haptic feedback pattern to trigger
+    ///   - intensity: The intensity of the haptic feedback (0.0 to 1.0, default is 1.0)
+    /// - Returns: `true` if the actuation succeeded, `false` otherwise
     @discardableResult
     public func actuate(
         pattern: MTFeedbackPattern,
@@ -75,7 +86,9 @@ public final class SubtrackActuator {
         ) == kIOReturnSuccess
     }
 
-    /// Create and trigger a custom haptic pattern
+    /// Creates and triggers a custom haptic pattern
+    /// - Parameter pattern: The custom haptic pattern to trigger
+    /// - Returns: `true` if the actuation succeeded, `false` otherwise
     @discardableResult
     public func actuate(customPattern pattern: MTHapticPattern) -> Bool {
         guard isOpen else {

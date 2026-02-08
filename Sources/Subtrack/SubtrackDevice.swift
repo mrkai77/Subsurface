@@ -16,6 +16,8 @@ public final class SubtrackDevice: @unchecked Sendable {
     private var pathStream: AsyncStream<(MTContact, Int, Int)>?
 
     private var wakeObserver: NSObjectProtocol?
+
+    /// Controls whether the device should automatically restart after the system wakes from sleep
     public var autoRestartOnWake: Bool = true
 
     private init(deviceRef: MTDeviceRef) {
@@ -128,6 +130,8 @@ public final class SubtrackDevice: @unchecked Sendable {
 
     // MARK: - Device Control
 
+    /// Starts the device and begins collecting touch data
+    /// - Returns: `true` if the device started successfully, `false` otherwise
     @discardableResult
     public func start() -> Bool {
         let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
@@ -142,6 +146,8 @@ public final class SubtrackDevice: @unchecked Sendable {
         return true
     }
 
+    /// Stops the device and stops collecting touch data
+    /// - Returns: `true` if the device stopped successfully, `false` otherwise
     @discardableResult
     public func stop() -> Bool {
         removeSleepWakeObservers()
@@ -194,6 +200,7 @@ public final class SubtrackDevice: @unchecked Sendable {
 
     // MARK: - Device Status
 
+    /// Checks if this device is running (is be changed when `start()`/`stop()` is called)
     public var isRunning: Bool {
         guard let MTDeviceIsRunning else {
             log.warn("Failed to load MTDeviceIsRunning")
@@ -202,6 +209,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceIsRunning(deviceRef)
     }
 
+    /// Determines if a device is built-in (e.g. a MacBook trackpad)
     public var isBuiltIn: Bool {
         guard let MTDeviceIsBuiltIn else {
             log.warn("Failed to load MTDeviceIsBuiltIn")
@@ -210,6 +218,8 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceIsBuiltIn(deviceRef)
     }
 
+    /// Indicates whether the device has an opaque surface
+    /// Maybe differentiates Magic Trackpads from older resistive trackpads?
     public var isOpaqueSurface: Bool {
         guard let MTDeviceIsOpaqueSurface else {
             log.warn("Failed to load MTDeviceIsOpaqueSurface")
@@ -218,6 +228,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceIsOpaqueSurface(deviceRef)
     }
 
+    /// Checks if this device's driver is responsive (basically a ping)
     public var isAlive: Bool {
         guard let MTDeviceIsAlive else {
             log.warn("Failed to load MTDeviceIsAlive")
@@ -226,6 +237,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceIsAlive(deviceRef)
     }
 
+    /// Indicates whether the device is a HID multitouch device, rather than e.g. SPI or I2C
     public var isHIDDevice: Bool {
         guard let MTDeviceIsMTHIDDevice else {
             log.warn("Failed to load MTDeviceIsMTHIDDevice")
@@ -234,6 +246,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceIsMTHIDDevice(deviceRef)
     }
 
+    /// Indicates whether the device supports Force Touch
     public var supportsForce: Bool {
         guard let MTDeviceSupportsForce else {
             log.warn("Failed to load MTDeviceSupportsForce")
@@ -242,6 +255,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceSupportsForce(deviceRef)
     }
 
+    /// Indicates whether the device supports haptic actuation
     public var supportsActuation: Bool {
         guard let MTDeviceSupportsActuation else {
             log.warn("Failed to load MTDeviceSupportsActuation")
@@ -250,6 +264,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceSupportsActuation(deviceRef)
     }
 
+    /// Controls whether system haptic actuations are enabled for this device
     public var isSystemActuationsEnabled: Bool {
         get {
             guard let MTActuatorGetSystemActuationsEnabled else {
@@ -267,6 +282,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         }
     }
 
+    /// Indicates whether the device driver is ready and fully initialized
     public var isDriverReady: Bool {
         guard let MTDeviceDriverIsReady else {
             log.warn("Failed to load MTDeviceDriverIsReady")
@@ -275,6 +291,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceDriverIsReady(deviceRef)
     }
 
+    /// Indicates whether the device supports power control (turning on/off)
     public var supportsPowerControl: Bool {
         guard let MTDevicePowerControlSupported else {
             log.warn("Failed to load MTDevicePowerControlSupported")
@@ -285,6 +302,7 @@ public final class SubtrackDevice: @unchecked Sendable {
 
     // MARK: - Device Information
 
+    /// The IOKit service identifier for this device
     public var service: io_service_t? {
         guard let MTDeviceGetService else {
             log.warn("Failed to load MTDeviceGetService")
@@ -293,6 +311,10 @@ public final class SubtrackDevice: @unchecked Sendable {
         return MTDeviceGetService(deviceRef)
     }
 
+    /// Surface dimensions in hundredths of a millimeter (0.01mm units, or 10 micrometers)
+    /// - To convert to millimeters: divide by 100
+    /// - To convert to centimeters: divide by 1000
+    /// - Example: width=12480 means 124.8mm or 12.48cm
     public var sensorSurfaceDimensions: (width: Int, height: Int)? {
         guard let MTDeviceGetSensorSurfaceDimensions else {
             log.warn("Failed to load MTDeviceGetSensorSurfaceDimensions")
@@ -307,6 +329,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return (Int(width), Int(height))
     }
 
+    /// The sensor grid dimensions in rows and columns
     public var sensorDimensions: (rows: Int, columns: Int)? {
         guard let MTDeviceGetSensorDimensions else {
             log.warn("Failed to load MTDeviceGetSensorDimensions")
@@ -321,6 +344,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return (Int(rows), Int(cols))
     }
 
+    /// The device family identifier (used to determine device type/model)
     public var familyID: Int? {
         guard let MTDeviceGetFamilyID else {
             log.warn("Failed to load MTDeviceGetFamilyID")
@@ -334,6 +358,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return Int(familyID)
     }
 
+    /// The unique device identifier
     public var deviceID: UInt64? {
         guard let MTDeviceGetDeviceID else {
             log.warn("Failed to load MTDeviceGetDeviceID")
@@ -347,6 +372,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return deviceID
     }
 
+    /// The device's firmware version
     public var version: Int? {
         guard let MTDeviceGetVersion else {
             log.warn("Failed to load MTDeviceGetVersion")
@@ -360,6 +386,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return Int(version)
     }
 
+    /// The driver type identifier for this device
     public var driverType: Int? {
         guard let MTDeviceGetDriverType else {
             log.warn("Failed to load MTDeviceGetDriverType")
@@ -373,6 +400,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return Int(driverType)
     }
 
+    /// The transport method (likely maps to methods such as USB, Bluetooth, built-in etc.)
     public var transportMethod: Int? {
         guard let MTDeviceGetTransportMethod else {
             log.warn("Failed to load MTDeviceGetTransportMethod")
@@ -386,6 +414,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         return Int(transportMethod)
     }
 
+    /// The device serial number
     public var serialNumber: String? {
         guard let MTDeviceGetSerialNumber else {
             log.warn("Failed to load MTDeviceGetSerialNumber")
@@ -456,6 +485,7 @@ public final class SubtrackDevice: @unchecked Sendable {
 
     // MARK: - Force Touch & Click Control
 
+    /// Controls whether system Force Touch responses are enabled for this device
     public var isSystemForceResponseEnabled: Bool {
         get {
             guard let MTDeviceGetSystemForceResponseEnabled else {
@@ -473,6 +503,7 @@ public final class SubtrackDevice: @unchecked Sendable {
         }
     }
 
+    /// Indicates whether the device supports silent clicking (haptic feedback without mechanical click)
     public var supportsSilentClick: Bool {
         guard let MTDeviceSupportsSilentClick else {
             log.warn("Failed to load MTDeviceSupportsSilentClick")
@@ -485,6 +516,7 @@ public final class SubtrackDevice: @unchecked Sendable {
 
     // MARK: - Power Control
 
+    /// Controls whether the device power is enabled
     public var isPowerEnabled: Bool {
         get {
             guard let MTDevicePowerGetEnabled else {
@@ -545,6 +577,7 @@ public final class SubtrackDevice: @unchecked Sendable {
 
     // MARK: - Haptics
 
+    /// The haptic actuator for this device, if available
     public var actuator: SubtrackActuator? {
         guard let MTDeviceGetMTActuator else {
             log.warn("Failed to load MTDeviceGetMTActuator")
