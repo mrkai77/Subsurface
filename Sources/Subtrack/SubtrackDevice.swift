@@ -58,7 +58,7 @@ public final class SubtrackDevice: @unchecked Sendable {
             return []
         }
 
-        guard let deviceList = MTDeviceCreateList()?.takeUnretainedValue() else {
+        guard let deviceList = MTDeviceCreateList()?.takeRetainedValue() else {
             Log.warn("Failed to load available devices with MTDeviceCreateList", category: Self.logCategory)
             return []
         }
@@ -73,6 +73,10 @@ public final class SubtrackDevice: @unchecked Sendable {
 
             // The element itself is the MTDeviceRef pointer value.
             let deviceRef = UnsafeMutableRawPointer(mutating: raw)
+            
+            // We will manually release the device ref in the deinit
+            _ = Unmanaged<CFTypeRef>.fromOpaque(deviceRef).retain()
+
             devices.append(deviceRef)
         }
 

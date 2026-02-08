@@ -54,13 +54,11 @@ final class ContentViewModel {
         task = Task { [weak self] in
             guard let device = self?.selectedDevice else { return }
             for await touches in device.contactFrames() {
-                autoreleasepool {
-                    guard !Task.isCancelled else { return }
-                    guard let self else { return }
+                guard !Task.isCancelled else { return }
+                guard let self else { return }
 
-                    touchData = touches
-                    currentDevice = device
-                }
+                self.touchData = touches
+                self.currentDevice = device
             }
         }
 
@@ -90,18 +88,16 @@ final class ContentViewModel {
             newMonitor.start()
 
             for await (device, touches) in newMonitor.contacts() {
-                autoreleasepool {
-                    guard !Task.isCancelled else { return }
-                    guard let self else { return }
+                guard !Task.isCancelled else { return }
+                guard let self else { return }
 
-                    self.touchData = touches
+                self.touchData = touches
 
-                    if self.currentDevice?.deviceID != device.deviceID {
-                        self.currentDevice = device
+                if self.currentDevice?.deviceID != device.deviceID {
+                    self.currentDevice = device
 
-                        if let dimensions = device.sensorDimensions {
-                            self.aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
-                        }
+                    if let dimensions = device.sensorDimensions {
+                        self.aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
                     }
                 }
             }

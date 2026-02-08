@@ -46,7 +46,7 @@ private enum MTSymbolLoader {
 
 typealias MTDeviceRef = UnsafeMutableRawPointer
 typealias MTActuatorRef = UnsafeMutableRawPointer
-typealias MTActuationRef = UnsafeMutableRawPointer
+typealias MTActuationRef = CFTypeRef
 
 // MARK: - Callback Types
 
@@ -200,4 +200,4 @@ let MTActuatorIsOpen: (@convention(c) (MTActuatorRef) -> Bool)? = MTSymbolLoader
 // MARK: - Actuation
 
 let MTActuationActuate: (@convention(c) (MTActuationRef, MTActuatorRef, UInt32) -> IOReturn)? = MTSymbolLoader.load("MTActuationActuate")
-let MTActuationCreateFromDictionary: (@convention(c) (CFDictionary, MTActuatorRef) -> MTActuationRef?)? = MTSymbolLoader.load("MTActuationCreateFromDictionary")
+let MTActuationCreateFromDictionary: (@convention(c) (CFDictionary, MTActuatorRef) -> Unmanaged<MTActuationRef>?)? = MTSymbolLoader.load("MTActuationCreateFromDictionary")

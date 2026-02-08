@@ -107,7 +107,7 @@ public final class SubtrackActuator {
         }
 
         let dict = pattern.toDictionary()
-        guard let actuation = MTActuationCreateFromDictionary(dict, actuatorRef) else {
+        guard let actuation = MTActuationCreateFromDictionary(dict, actuatorRef)?.takeRetainedValue() else {
             log.error("Failed to create actuation")
             return false
         }
