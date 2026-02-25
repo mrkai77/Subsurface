@@ -91,7 +91,11 @@ struct ControlsView: View {
                 .disabled(viewModel.isListening)
             }
             
-            Section("Actuation") {
+            Section("Actuation Feedback Patterns") {
+                Slider(value: $viewModel.hapticIntensity, in: 0...1) {
+                    Text("Intensity")
+                }
+                
                 ForEach(MTFeedbackPattern.allCases, id: \.rawValue) { pattern in
                     HStack {
                         Text(pattern.humanReadable)

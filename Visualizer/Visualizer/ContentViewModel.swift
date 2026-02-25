@@ -28,6 +28,7 @@ final class ContentViewModel {
     var showVelocity: Bool = false
     var showContactInfo: Bool = false
     var enablePalmRejection: Bool = true
+    var hapticIntensity: Float = 1.0
 
     private var task: Task<(), Never>?
     private var monitor: SubsurfaceMonitor?
@@ -136,7 +137,7 @@ final class ContentViewModel {
         for device in SubsurfaceDevice.allDevices {
             if let actuator = device.actuator {
                 actuator.open()
-                actuator.actuate(pattern: pattern)
+                actuator.actuate(pattern: pattern, intensity: hapticIntensity)
                 actuator.close()
             }
         }
