@@ -60,7 +60,7 @@ struct VisualizerCanvas: View {
         let text = Text("""
         \(Text(touch.contactState.description).bold())
         \(touch.hand?.description ?? "Unknown") \(touch.finger?.description ?? "Unknown")
-        ID \(touch.id)
+        ID \(touch.id), Pressure: \(Int(touch.pressure))
         """)
         context.draw(text, at: CGPoint(x: position.x, y: position.y - height), anchor: .bottom)
     }
