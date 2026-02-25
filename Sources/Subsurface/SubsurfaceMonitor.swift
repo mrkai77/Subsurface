@@ -1,6 +1,6 @@
 //
-//  SubtrackMonitor.swift
-//  Subtrack
+//  SubsurfaceMonitor.swift
+//  Subsurface
 //
 //  Created by Kai Azim on 2026-02-07.
 //
@@ -11,16 +11,16 @@ import Scribe
 
 /// Monitors all multitouch devices and provides a unified stream of contacts
 @Loggable
-public final class SubtrackMonitor: @unchecked Sendable {
+public final class SubsurfaceMonitor: @unchecked Sendable {
     private var notifyPort: IONotificationPortRef?
     private var addedIterator: io_iterator_t = 0
     private var removedIterator: io_iterator_t = 0
-    private let notificationQueue = DispatchQueue(label: "com.MrKai77.subtrack.monitor", qos: .userInteractive)
+    private let notificationQueue = DispatchQueue(label: "com.MrKai77.subsurface.monitor", qos: .userInteractive)
 
-    private var devices: [UInt64: SubtrackDevice] = [:]
+    private var devices: [UInt64: SubsurfaceDevice] = [:]
     private var deviceTasks: [UInt64: Task<(), Never>] = [:]
     private var deviceServices: [io_service_t: UInt64] = [:] // Maps IOService to device ID
-    private var contactContinuation: AsyncStream<(SubtrackDevice, [MTContact])>.Continuation?
+    private var contactContinuation: AsyncStream<(SubsurfaceDevice, [MTContact])>.Continuation?
     private var isRunning = false
 
     public init() {}
@@ -50,7 +50,7 @@ public final class SubtrackMonitor: @unchecked Sendable {
 
         // Register for device added notifications
         let addedCallback: IOServiceMatchingCallback = { refcon, iterator in
-            let monitor = Unmanaged<SubtrackMonitor>.fromOpaque(refcon!).takeUnretainedValue()
+            let monitor = Unmanaged<SubsurfaceMonitor>.fromOpaque(refcon!).takeUnretainedValue()
             monitor.handleDevicesAdded(iterator: iterator)
         }
 
@@ -76,7 +76,7 @@ public final class SubtrackMonitor: @unchecked Sendable {
         // Register for device removed notifications
         let removedMatchingDict = IOServiceMatching("AppleMultitouchDevice")
         let removedCallback: IOServiceMatchingCallback = { refcon, iterator in
-            let monitor = Unmanaged<SubtrackMonitor>.fromOpaque(refcon!).takeUnretainedValue()
+            let monitor = Unmanaged<SubsurfaceMonitor>.fromOpaque(refcon!).takeUnretainedValue()
             monitor.handleDevicesRemoved(iterator: iterator)
         }
 
@@ -146,12 +146,12 @@ public final class SubtrackMonitor: @unchecked Sendable {
     }
 
     /// Create an async stream of contacts from all devices
-    public func contacts() -> AsyncStream<(SubtrackDevice, [MTContact])> {
+    public func contacts() -> AsyncStream<(SubsurfaceDevice, [MTContact])> {
         if contactContinuation != nil {
             log.warn("Contact stream already exists")
         }
 
-        let stream = AsyncStream<(SubtrackDevice, [MTContact])>(bufferingPolicy: .bufferingNewest(1)) { continuation in
+        let stream = AsyncStream<(SubsurfaceDevice, [MTContact])>(bufferingPolicy: .bufferingNewest(1)) { continuation in
             self.contactContinuation = continuation
 
             continuation.onTermination = { _ in
@@ -166,7 +166,7 @@ public final class SubtrackMonitor: @unchecked Sendable {
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
 
-            guard let device = SubtrackDevice(service: service) else {
+            guard let device = SubsurfaceDevice(service: service) else {
                 log.warn("Failed to create device from service")
                 continue
             }
@@ -242,7 +242,7 @@ public final class SubtrackMonitor: @unchecked Sendable {
     // MARK: - Device Access
 
     /// Get all currently connected devices
-    public var activeDevices: [SubtrackDevice] {
+    public var activeDevices: [SubsurfaceDevice] {
         Array(devices.values)
     }
 }

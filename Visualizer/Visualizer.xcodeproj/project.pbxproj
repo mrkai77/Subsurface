@@ -7,17 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2AEE00F22F37EF0C00E11DB4 /* Subtrack in Frameworks */ = {isa = PBXBuildFile; productRef = 2AEE00F12F37EF0C00E11DB4 /* Subtrack */; };
+		2AF64BAF2F3863D900CB886B /* Subsurface in Frameworks */ = {isa = PBXBuildFile; productRef = 2AF64BAE2F3863D900CB886B /* Subsurface */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2ABED2A82F37D5100022CB4A /* Subtrack Visualizer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Subtrack Visualizer.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2ABED2A82F37D5100022CB4A /* Visualizer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Visualizer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2ABED2AA2F37D5100022CB4A /* Subtrack Visualizer */ = {
+		2ABED2AA2F37D5100022CB4A /* Visualizer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Subtrack Visualizer";
+			path = Visualizer;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -27,7 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2AEE00F22F37EF0C00E11DB4 /* Subtrack in Frameworks */,
+				2AF64BAF2F3863D900CB886B /* Subsurface in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -37,7 +37,7 @@
 		2ABED29F2F37D5100022CB4A = {
 			isa = PBXGroup;
 			children = (
-				2ABED2AA2F37D5100022CB4A /* Subtrack Visualizer */,
+				2ABED2AA2F37D5100022CB4A /* Visualizer */,
 				2ABED2A92F37D5100022CB4A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -45,7 +45,7 @@
 		2ABED2A92F37D5100022CB4A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2ABED2A82F37D5100022CB4A /* Subtrack Visualizer.app */,
+				2ABED2A82F37D5100022CB4A /* Visualizer.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,9 +53,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2ABED2A72F37D5100022CB4A /* Subtrack Visualizer */ = {
+		2ABED2A72F37D5100022CB4A /* Visualizer */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2ABED2B32F37D5110022CB4A /* Build configuration list for PBXNativeTarget "Subtrack Visualizer" */;
+			buildConfigurationList = 2ABED2B32F37D5110022CB4A /* Build configuration list for PBXNativeTarget "Visualizer" */;
 			buildPhases = (
 				2ABED2A42F37D5100022CB4A /* Sources */,
 				2ABED2A52F37D5100022CB4A /* Frameworks */,
@@ -66,14 +66,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				2ABED2AA2F37D5100022CB4A /* Subtrack Visualizer */,
+				2ABED2AA2F37D5100022CB4A /* Visualizer */,
 			);
-			name = "Subtrack Visualizer";
+			name = Visualizer;
 			packageProductDependencies = (
-				2AEE00F12F37EF0C00E11DB4 /* Subtrack */,
+				2AF64BAE2F3863D900CB886B /* Subsurface */,
 			);
 			productName = "Subtrack Visualizer";
-			productReference = 2ABED2A82F37D5100022CB4A /* Subtrack Visualizer.app */;
+			productReference = 2ABED2A82F37D5100022CB4A /* Visualizer.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -91,7 +91,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 2ABED2A32F37D5100022CB4A /* Build configuration list for PBXProject "Subtrack Visualizer" */;
+			buildConfigurationList = 2ABED2A32F37D5100022CB4A /* Build configuration list for PBXProject "Visualizer" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -101,14 +101,14 @@
 			mainGroup = 2ABED29F2F37D5100022CB4A;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				2AEE00F02F37EF0C00E11DB4 /* XCLocalSwiftPackageReference "../../Subtrack" */,
+				2AF64BAD2F3863D900CB886B /* XCLocalSwiftPackageReference "../../Subsurface" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2ABED2A92F37D5100022CB4A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				2ABED2A72F37D5100022CB4A /* Subtrack Visualizer */,
+				2ABED2A72F37D5100022CB4A /* Visualizer */,
 			);
 		};
 /* End PBXProject section */
@@ -267,7 +267,6 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Visualizer;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -299,7 +298,6 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Visualizer;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -321,7 +319,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2ABED2A32F37D5100022CB4A /* Build configuration list for PBXProject "Subtrack Visualizer" */ = {
+		2ABED2A32F37D5100022CB4A /* Build configuration list for PBXProject "Visualizer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2ABED2B12F37D5110022CB4A /* Debug */,
@@ -330,7 +328,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2ABED2B32F37D5110022CB4A /* Build configuration list for PBXNativeTarget "Subtrack Visualizer" */ = {
+		2ABED2B32F37D5110022CB4A /* Build configuration list for PBXNativeTarget "Visualizer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2ABED2B42F37D5110022CB4A /* Debug */,
@@ -342,16 +340,16 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		2AEE00F02F37EF0C00E11DB4 /* XCLocalSwiftPackageReference "../../Subtrack" */ = {
+		2AF64BAD2F3863D900CB886B /* XCLocalSwiftPackageReference "../../Subsurface" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../Subtrack;
+			relativePath = ../../Subsurface;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		2AEE00F12F37EF0C00E11DB4 /* Subtrack */ = {
+		2AF64BAE2F3863D900CB886B /* Subsurface */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = Subtrack;
+			productName = Subsurface;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

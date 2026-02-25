@@ -1,11 +1,11 @@
 //
 //  VisualizerCanvas.swift
-//  Subtrack Visualizer
+//  Visualizer
 //
 //  Created by Kai Azim on 2026-02-07.
 //
 
-import Subtrack
+import Subsurface
 import SwiftUI
 
 struct VisualizerCanvas: View {

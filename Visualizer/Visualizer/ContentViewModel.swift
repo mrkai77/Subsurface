@@ -1,11 +1,11 @@
 //
 //  ContentViewModel.swift
-//  Subtrack Visualizer
+//  Visualizer
 //
 //  Created by Kai Azim on 2026-02-07.
 //
 
-import Subtrack
+import Subsurface
 import SwiftUI
 
 enum TrackingMode {
@@ -19,10 +19,10 @@ final class ContentViewModel {
     private(set) var touchData = [MTContact]()
     private(set) var isListening: Bool = false
     private(set) var aspectRatio: CGFloat = 24.0 / 18.0
-    private(set) var currentDevice: SubtrackDevice?
+    private(set) var currentDevice: SubsurfaceDevice?
 
-    private(set) var selectedDevice: SubtrackDevice?
-    private(set) var availableDevicesByID: [UInt64: SubtrackDevice] = [:]
+    private(set) var selectedDevice: SubsurfaceDevice?
+    private(set) var availableDevicesByID: [UInt64: SubsurfaceDevice] = [:]
 
     var trackingMode: TrackingMode = .global
     var showVelocity: Bool = false
@@ -30,7 +30,7 @@ final class ContentViewModel {
     var enablePalmRejection: Bool = true
 
     private var task: Task<(), Never>?
-    private var monitor: SubtrackMonitor?
+    private var monitor: SubsurfaceMonitor?
 
     func start() {
         switch trackingMode {
@@ -82,7 +82,7 @@ final class ContentViewModel {
     }
 
     private func startGlobal() {
-        let newMonitor = SubtrackMonitor()
+        let newMonitor = SubsurfaceMonitor()
         monitor = newMonitor
 
         task?.cancel()
@@ -119,16 +119,26 @@ final class ContentViewModel {
 
     func reloadDevices() {
         availableDevicesByID = Dictionary(
-            SubtrackDevice.allDevices.map { ($0.deviceID ?? 0, $0) },
+            SubsurfaceDevice.allDevices.map { ($0.deviceID ?? 0, $0) },
             uniquingKeysWith: { _, new in new }
         )
     }
 
-    func selectDevice(_ device: SubtrackDevice) {
+    func selectDevice(_ device: SubsurfaceDevice) {
         selectedDevice = device
 
         if let dimensions = device.sensorDimensions {
             aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
+        }
+    }
+    
+    func runActuation(pattern: MTFeedbackPattern) {
+        for device in SubsurfaceDevice.allDevices {
+            if let actuator = device.actuator {
+                actuator.open()
+                actuator.actuate(pattern: pattern)
+                actuator.close()
+            }
         }
     }
 }

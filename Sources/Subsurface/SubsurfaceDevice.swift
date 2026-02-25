@@ -1,6 +1,6 @@
 //
-//  SubtrackDevice.swift
-//  Subtrack
+//  SubsurfaceDevice.swift
+//  Subsurface
 //
 //  Created by Kai Azim on 2026-01-31.
 //
@@ -10,7 +10,7 @@ import Scribe
 
 /// Represents a multitouch device (trackpad)
 @Loggable
-public final class SubtrackDevice: @unchecked Sendable {
+public final class SubsurfaceDevice: @unchecked Sendable {
     private let deviceRef: MTDeviceRef
 
     private var contactStream: AsyncStream<[MTContact]>?
@@ -37,7 +37,7 @@ public final class SubtrackDevice: @unchecked Sendable {
     }
 
     /// Get the default multitouch device (usually the built-in trackpad)
-    public static var defaultDevice: SubtrackDevice? {
+    public static var defaultDevice: SubsurfaceDevice? {
         guard let MTDeviceCreateDefault else {
             Log.warn("Failed to load MTDeviceCreateDefault", category: logCategory)
             return nil
@@ -48,11 +48,11 @@ public final class SubtrackDevice: @unchecked Sendable {
             return nil
         }
 
-        return SubtrackDevice(deviceRef: deviceRef)
+        return SubsurfaceDevice(deviceRef: deviceRef)
     }
 
     /// Get all available multitouch devices
-    public static var allDevices: [SubtrackDevice] {
+    public static var allDevices: [SubsurfaceDevice] {
         guard let MTDeviceCreateList else {
             Log.warn("Failed to load MTDeviceCreateList", category: logCategory)
             return []
@@ -80,7 +80,7 @@ public final class SubtrackDevice: @unchecked Sendable {
             devices.append(deviceRef)
         }
 
-        return devices.map { SubtrackDevice(deviceRef: $0) }
+        return devices.map { SubsurfaceDevice(deviceRef: $0) }
     }
 
     /// Get the current absolute time from the multitouch framework
@@ -597,7 +597,7 @@ public final class SubtrackDevice: @unchecked Sendable {
     // MARK: - Haptics
 
     /// The haptic actuator for this device, if available
-    public var actuator: SubtrackActuator? {
+    public var actuator: SubsurfaceActuator? {
         guard let MTDeviceGetMTActuator else {
             log.warn("Failed to load MTDeviceGetMTActuator")
             return nil
@@ -607,11 +607,11 @@ public final class SubtrackDevice: @unchecked Sendable {
             return nil
         }
 
-        return SubtrackActuator(actuatorRef: actuatorRef)
+        return SubsurfaceActuator(actuatorRef: actuatorRef)
     }
 }
 
-extension SubtrackDevice: CustomStringConvertible {
+extension SubsurfaceDevice: CustomStringConvertible {
     public var description: String {
         "MultitouchDevice(isRunning: \(isRunning), familyID: \(familyID ?? -1), version: \(version ?? -1)))"
     }
@@ -620,8 +620,8 @@ extension SubtrackDevice: CustomStringConvertible {
 // MARK: - C Frame Callback
 
 let contactFrameCallback: MTFrameCallbackFunctionWithRefcon = { _, dataPtr, numTouches, _, _, refcon in
-    let subtrackDevice = Unmanaged<SubtrackDevice>.fromOpaque(refcon).takeUnretainedValue()
-    guard let continuation = subtrackDevice.contactContinuation else { return }
+    let device = Unmanaged<SubsurfaceDevice>.fromOpaque(refcon).takeUnretainedValue()
+    guard let continuation = device.contactContinuation else { return }
 
     let touches = UnsafeBufferPointer(
         start: dataPtr.assumingMemoryBound(to: MTContact.self),

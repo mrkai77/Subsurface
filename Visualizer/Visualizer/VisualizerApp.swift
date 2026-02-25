@@ -1,6 +1,6 @@
 //
-//  Subtrack_VisualizerApp.swift
-//  Subtrack Visualizer
+//  VisualizerApp.swift
+//  Visualizer
 //
 //  Created by Kai Azim on 2026-02-07.
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct Subtrack_VisualizerApp: App {
+struct VisualizerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

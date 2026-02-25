@@ -1,6 +1,6 @@
 //
-//  SubtrackActuator.swift
-//  Subtrack
+//  SubsurfaceActuator.swift
+//  Subsurface
 //
 //  Created by Kai Azim on 2026-01-31.
 //
@@ -11,7 +11,7 @@ import Scribe
 
 /// Represents a haptic actuator for a multitouch device
 @Loggable
-public final class SubtrackActuator {
+public final class SubsurfaceActuator {
     private let actuatorRef: MTActuatorRef
 
     init(actuatorRef: MTActuatorRef) {

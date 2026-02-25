@@ -1,11 +1,11 @@
 //
 //  ControlsView.swift
-//  Subtrack Visualizer
+//  Visualizer
 //
 //  Created by Kai Azim on 2026-02-07.
 //
 
-import Subtrack
+import Subsurface
 import SwiftUI
 
 struct ControlsView: View {
@@ -15,7 +15,7 @@ struct ControlsView: View {
         @Bindable var viewModel = viewModel
 
         Form {
-            Section("Subtrack Visualizer") {
+            Section("Subsurface") {
                 HStack {
                     Text("Visualization")
 
@@ -89,6 +89,21 @@ struct ControlsView: View {
                     .onAppear(perform: viewModel.reloadDevices)
                 }
                 .disabled(viewModel.isListening)
+            }
+            
+            Section("Actuation") {
+                ForEach(MTFeedbackPattern.allCases, id: \.rawValue) { pattern in
+                    HStack {
+                        Text(pattern.humanReadable)
+                        Spacer()
+                        Button("Run") {
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(250))
+                                viewModel.runActuation(pattern: pattern)
+                            }
+                        }
+                    }
+                }
             }
         }
         .formStyle(.grouped)
