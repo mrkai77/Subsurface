@@ -98,7 +98,7 @@ struct ControlsView: View {
                 
                 ForEach(MTFeedbackPattern.allCases, id: \.rawValue) { pattern in
                     HStack {
-                        Text(pattern.humanReadable)
+                        Text(pattern.description)
                         Spacer()
                         Button("Run") {
                             Task {

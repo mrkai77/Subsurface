@@ -9,7 +9,7 @@ import Foundation
 
 /// Uses empirically determined values
 @frozen
-public enum MTFeedbackPattern: Int32, CaseIterable {
+public enum MTFeedbackPattern: Int32, CustomStringConvertible, CaseIterable {
     case firm = 1
     case firmStrong = 2
 
@@ -22,7 +22,7 @@ public enum MTFeedbackPattern: Int32, CaseIterable {
     case click = 15
     case secondaryClick = 16
     
-    public var humanReadable: String {
+    public var description: String {
         switch self {
         case .firm:
             "firm"
