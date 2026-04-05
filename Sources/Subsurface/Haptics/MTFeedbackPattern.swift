@@ -21,7 +21,7 @@ public enum MTFeedbackPattern: Int32, CustomStringConvertible, CaseIterable {
 
     case click = 15
     case secondaryClick = 16
-    
+
     public var description: String {
         switch self {
         case .firm:

@@ -56,4 +56,39 @@ public struct MTContact: Identifiable, Equatable {
 
     /// The density of this touch. Ranges from 0 (no touch), 1 (normal-range touch), or higher for a higher-pressured touch.
     public let density: Float
+
+    /// Internal initializer for testing purposes. Accessible via `@testable import Subsurface`.
+    init(
+        frame: Int32 = 0,
+        timestamp: Double = 0,
+        id: Int32 = 0,
+        contactState: MTContactState = .touching,
+        finger: MTContactFinger? = .index,
+        hand: MTContactHand? = .right,
+        normalizedVector: MTVector = MTVector(position: MTPoint(x: 0, y: 0), velocity: MTPoint(x: 0, y: 0)),
+        totalCapacitance: Float = 0,
+        pressure: Float = 0,
+        angle: Float = 0,
+        majorAxis: Float = 0,
+        minorAxis: Float = 0,
+        absoluteVector: MTVector = MTVector(position: MTPoint(x: 0, y: 0), velocity: MTPoint(x: 0, y: 0)),
+        density: Float = 0
+    ) {
+        self.frame = frame
+        self.timestamp = timestamp
+        self.id = id
+        self._contactState = contactState.rawValue
+        self._fingerID = finger?.rawValue ?? 0
+        self._handID = hand?.rawValue ?? 0
+        self.normalizedVector = normalizedVector
+        self.totalCapacitance = totalCapacitance
+        self.pressure = pressure
+        self.angle = angle
+        self.majorAxis = majorAxis
+        self.minorAxis = minorAxis
+        self.absoluteVector = absoluteVector
+        self.field14 = 0
+        self.field15 = 0
+        self.density = density
+    }
 }

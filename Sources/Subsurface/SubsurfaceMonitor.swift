@@ -239,8 +239,6 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
         }
     }
 
-    // MARK: - Device Access
-
     /// Get all currently connected devices
     public var activeDevices: [SubsurfaceDevice] {
         Array(devices.values)

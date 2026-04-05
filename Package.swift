@@ -26,6 +26,10 @@ let package = Package(
             dependencies: [
                 .product(name: "Scribe", package: "Scribe")
             ]
+        ),
+        .testTarget(
+            name: "SubsurfaceTests",
+            dependencies: ["Subsurface"]
         )
     ]
 )

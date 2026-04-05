@@ -132,7 +132,7 @@ final class ContentViewModel {
             aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
         }
     }
-    
+
     func runActuation(pattern: MTFeedbackPattern) {
         for device in SubsurfaceDevice.allDevices {
             if let actuator = device.actuator {
