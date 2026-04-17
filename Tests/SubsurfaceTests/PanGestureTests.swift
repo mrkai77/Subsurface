@@ -15,9 +15,10 @@ struct PanGestureTests {
 
         let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
         let result1 = recognizer.process(contacts: origin)
-        #expect(result1 == nil)
+        #expect(result1?.phase == .determining)
 
-        let moved = ContactFactory.twoFingers(p1: (x: 0.36, y: 0.5), p2: (x: 0.46, y: 0.5))
+        // Move centroid past minimumPanTranslation (0.08): centroid goes from 0.35 to 0.45
+        let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
         let result2 = recognizer.process(contacts: moved)
         #expect(result2 != nil)
 
@@ -29,7 +30,7 @@ struct PanGestureTests {
             Issue.record("Expected pan event")
         }
 
-        let moved2 = ContactFactory.twoFingers(p1: (x: 0.42, y: 0.5), p2: (x: 0.52, y: 0.5))
+        let moved2 = ContactFactory.twoFingers(p1: (x: 0.5, y: 0.5), p2: (x: 0.6, y: 0.5))
         let result3 = recognizer.process(contacts: moved2)
 
         if case let .pan(pan) = result3 {
@@ -46,7 +47,8 @@ struct PanGestureTests {
         let origin = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.3), p2: (x: 0.5, y: 0.3))
         _ = recognizer.process(contacts: origin)
 
-        let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.36), p2: (x: 0.5, y: 0.36))
+        // Move centroid upward past threshold (0.08): centroid y goes from 0.3 to 0.4
+        let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.4), p2: (x: 0.5, y: 0.4))
         let result = recognizer.process(contacts: moved)
 
         if case let .pan(pan) = result {
@@ -65,7 +67,7 @@ struct PanGestureTests {
 
         let moved = ContactFactory.twoFingers(p1: (x: 0.501, y: 0.5), p2: (x: 0.601, y: 0.5))
         let result = recognizer.process(contacts: moved)
-        #expect(result == nil)
+        #expect(result?.phase == .determining)
     }
 
     @Test("Backward motion continues gesture with decreasing distance")
@@ -76,21 +78,21 @@ struct PanGestureTests {
         let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
         _ = recognizer.process(contacts: origin)
 
-        // Slide right -> .began
-        let step1 = ContactFactory.twoFingers(p1: (x: 0.36, y: 0.5), p2: (x: 0.46, y: 0.5))
+        // Slide right past threshold -> .began (centroid from 0.35 to 0.45)
+        let step1 = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
         let began = recognizer.process(contacts: step1)
         #expect(began != nil)
 
-        // Continue right -> .changed with growing distance
-        let step2 = ContactFactory.twoFingers(p1: (x: 0.46, y: 0.5), p2: (x: 0.56, y: 0.5))
+        // Continue right -> .changed with growing distance (centroid 0.55)
+        let step2 = ContactFactory.twoFingers(p1: (x: 0.5, y: 0.5), p2: (x: 0.6, y: 0.5))
         let changed1 = recognizer.process(contacts: step2)
         if case let .pan(pan) = changed1 {
             #expect(pan.phase == .changed)
             #expect(pan.distance > 0.1)
         }
 
-        // Pull back left -> still .changed, distance decreases, no reset
-        let reverse = ContactFactory.twoFingers(p1: (x: 0.36, y: 0.5), p2: (x: 0.46, y: 0.5))
+        // Pull back left -> still .changed, distance decreases, no reset (centroid 0.45)
+        let reverse = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
         let changed2 = recognizer.process(contacts: reverse)
         if case let .pan(pan) = changed2 {
             #expect(pan.phase == .changed)
@@ -107,14 +109,15 @@ struct PanGestureTests {
         let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
         _ = recognizer.process(contacts: origin)
 
-        let moved = ContactFactory.twoFingers(p1: (x: 0.36, y: 0.5), p2: (x: 0.46, y: 0.5))
+        // Move past threshold (centroid from 0.35 to 0.45)
+        let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
         let began = recognizer.process(contacts: moved)
         #expect(began != nil)
 
         let threeFinger = [
-            ContactFactory.contact(x: 0.36, y: 0.5, finger: .index, hand: .right, id: 1),
-            ContactFactory.contact(x: 0.46, y: 0.5, finger: .middle, hand: .right, id: 2),
-            ContactFactory.contact(x: 0.56, y: 0.5, finger: .ring, hand: .right, id: 3)
+            ContactFactory.contact(x: 0.4, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .middle, hand: .right, id: 2),
+            ContactFactory.contact(x: 0.6, y: 0.5, finger: .ring, hand: .right, id: 3)
         ]
         let result = recognizer.process(contacts: threeFinger)
 

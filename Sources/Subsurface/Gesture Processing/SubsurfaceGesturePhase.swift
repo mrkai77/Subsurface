@@ -15,6 +15,9 @@ public enum SubsurfaceGesturePhase: Sendable, Equatable {
     /// Evaluating touches, not yet recognized.
     case possible
 
+    /// Correct finger count detected, but gesture type not yet determined.
+    case determining
+
     /// Gesture recognized, first event emitted.
     case began
 

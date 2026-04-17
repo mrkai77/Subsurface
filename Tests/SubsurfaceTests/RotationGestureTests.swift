@@ -80,6 +80,6 @@ struct RotateGestureTests {
             p2: (x: cx + r * cos5, y: cy + r * sin5)
         )
         let result = recognizer.process(contacts: rotated)
-        #expect(result == nil)
+        #expect(result?.phase == .determining)
     }
 }

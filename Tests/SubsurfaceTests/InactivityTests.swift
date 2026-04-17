@@ -18,7 +18,8 @@ struct InactivityTests {
             let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
             continuation.yield(origin)
 
-            let moved = ContactFactory.twoFingers(p1: (x: 0.36, y: 0.5), p2: (x: 0.46, y: 0.5))
+            // Move past minimumPanTranslation (0.08) to trigger .began
+            let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
             continuation.yield(moved)
         }
 
@@ -53,6 +54,6 @@ struct InactivityTests {
 
         let newOrigin = ContactFactory.twoFingers(p1: (x: 0.5, y: 0.5), p2: (x: 0.6, y: 0.5))
         let result = recognizer.process(contacts: newOrigin)
-        #expect(result == nil)
+        #expect(result?.phase == .determining)
     }
 }

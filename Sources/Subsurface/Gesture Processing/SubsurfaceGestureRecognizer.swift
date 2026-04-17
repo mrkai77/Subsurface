@@ -48,7 +48,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     public var requiredFingerCount: Int
 
     /// Minimum centroid translation (normalized) to trigger a pan gesture.
-    public var minimumPanTranslation: CGFloat = 0.025
+    public var minimumPanTranslation: CGFloat = 0.08
 
     /// Minimum inter-finger distance delta (normalized) to trigger a pinch gesture.
     public var minimumPinchDistance: CGFloat = 0.1
@@ -127,7 +127,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
                 }
 
                 // Stream ended, so finalize if mid-gesture
-                if let self, phase == .began || phase == .changed {
+                if let self, phase == .began || phase == .changed || phase == .determining {
                     if let event = makeEndEvent() {
                         continuation.yield(event)
                     }
@@ -161,7 +161,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         guard filtered.count == requiredFingerCount,
               maxTouchesInSequence == requiredFingerCount else {
             // If we were mid-gesture, cancel it
-            if phase == .began || phase == .changed {
+            if phase == .began || phase == .changed || phase == .determining {
                 let event = makeCancelEvent()
                 resetState()
                 return event
@@ -183,8 +183,8 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             lastDistance = distance
             lastAngle = angle
             lastEventTime = now
-            phase = .possible
-            return nil
+            phase = .determining
+            return .determining(centroid: centroid, fingerCount: filtered.count)
         }
 
         // If gesture kind is not yet locked, try to disambiguate
@@ -201,12 +201,12 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             } else if translation > minimumPanTranslation {
                 gestureKind = .pan
             } else {
-                // Not enough movement yet, so stay in .possible
+                // Not enough movement yet, stay in .determining
                 lastCentroid = centroid
                 lastDistance = distance
                 lastAngle = angle
                 lastEventTime = now
-                return nil
+                return .determining(centroid: centroid, fingerCount: filtered.count)
             }
 
             // Gesture recognized, so emit .began
@@ -245,7 +245,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     /// Reset the recognizer to its initial state.
     public func reset() {
-        if phase == .began || phase == .changed {
+        if phase == .began || phase == .changed || phase == .determining {
             if let event = makeEndEvent() {
                 continuation?.yield(event)
             }
@@ -261,7 +261,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             try? await Task.sleep(for: inactivityTimeout)
             if Task.isCancelled { return }
 
-            if phase == .began || phase == .changed {
+            if phase == .began || phase == .changed || phase == .determining {
                 if let event = makeEndEvent() {
                     continuation?.yield(event)
                 }

@@ -70,7 +70,7 @@ struct PinchGestureTests {
 
         let small = ContactFactory.twoFingers(p1: (x: 0.43, y: 0.5), p2: (x: 0.57, y: 0.5))
         let result = recognizer.process(contacts: small)
-        #expect(result == nil)
+        #expect(result?.phase == .determining)
     }
 
     @Test("Pinch inward detected with scale < 1.0")

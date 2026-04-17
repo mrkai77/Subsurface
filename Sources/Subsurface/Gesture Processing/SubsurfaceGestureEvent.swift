@@ -9,6 +9,8 @@ import CoreGraphics
 
 /// A gesture event emitted by a ``SubsurfaceGestureRecognizer``.
 public enum SubsurfaceGestureEvent: Sendable {
+    /// Correct finger count detected, but gesture type not yet determined.
+    case determining(centroid: CGPoint, fingerCount: Int)
     /// A pan (directional swipe) gesture was detected.
     case pan(PanEvent)
     /// A pinch (spread/squeeze) gesture was detected.
@@ -19,6 +21,7 @@ public enum SubsurfaceGestureEvent: Sendable {
     /// The gesture phase of this event.
     public var phase: SubsurfaceGesturePhase {
         switch self {
+        case .determining: .determining
         case let .pan(event): event.phase
         case let .pinch(event): event.phase
         case let .rotation(event): event.phase
