@@ -13,14 +13,35 @@ import Scribe
 @Loggable
 public final class SubsurfaceActuator {
     private let actuatorRef: MTActuatorRef
+    /// `true` when this wrapper owns the +1 retain from `MTActuatorCreateFromDeviceID`
+    /// and has to release on deinit. `false` for the Get-rule path through
+    /// `MTDeviceGetMTActuator`, where the device already owns the retain.
+    private let ownsRef: Bool
 
-    init(actuatorRef: MTActuatorRef) {
+    init(actuatorRef: MTActuatorRef, ownsRef: Bool = false) {
         self.actuatorRef = actuatorRef
+        self.ownsRef = ownsRef
+    }
+
+    /// Create an actuator from an MT device ID. Useful when you've discovered a
+    /// device through IOKit separately and don't have a `SubsurfaceDevice` handle.
+    public convenience init?(deviceID: UInt64) {
+        guard let MTActuatorCreateFromDeviceID else {
+            Log.warn("Failed to load MTActuatorCreateFromDeviceID", category: Self.logCategory)
+            return nil
+        }
+        guard let ref = MTActuatorCreateFromDeviceID(deviceID) else {
+            return nil
+        }
+        self.init(actuatorRef: ref, ownsRef: true)
     }
 
     deinit {
         if isOpen {
             _ = close()
+        }
+        if ownsRef {
+            Unmanaged<CFTypeRef>.fromOpaque(actuatorRef).release()
         }
     }
 

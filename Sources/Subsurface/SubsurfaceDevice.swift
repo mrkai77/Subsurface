@@ -22,6 +22,13 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     /// framework thread, while register/unregister can run on any caller thread.
     let contactState = OSAllocatedUnfairLock<ContactState>(initialState: .init())
 
+    struct PathEventState {
+        var stream: AsyncStream<MTPathEvent>?
+        var continuation: AsyncStream<MTPathEvent>.Continuation?
+    }
+    /// Lock for the path-callback stream pair, mirroring `contactState`.
+    let pathState = OSAllocatedUnfairLock<PathEventState>(initialState: .init())
+
     /// Controls whether the device should automatically restart after the system wakes from sleep
     public var autoRestartOnWake: Bool = true
     private var wakeObserver: NSObjectProtocol?
@@ -153,6 +160,7 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     public func stop() -> Bool {
         removeSleepWakeObservers()
         removeContactFrameCallback()
+        removePathCallback()
         return rawStop()
     }
 
@@ -587,6 +595,63 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         return stream
     }
 
+    /// Create an async stream of per-path events. Path callbacks fire per
+    /// finger-path transition (start / change / end), so use this when you care
+    /// about individual finger lifecycles rather than the full frame each tick.
+    public func paths() -> AsyncStream<MTPathEvent> {
+        if let existing = pathState.withLock({ $0.stream }) {
+            return existing
+        }
+
+        let stream = AsyncStream<MTPathEvent>(bufferingPolicy: .bufferingNewest(32)) { continuation in
+            pathState.withLock { state in
+                state.continuation = continuation
+            }
+
+            continuation.onTermination = { [weak self] _ in
+                self?.pathState.withLock { $0.continuation = nil }
+            }
+        }
+
+        pathState.withLock { $0.stream = stream }
+
+        guard let MTRegisterPathCallbackWithRefcon else {
+            log.warn("Failed to load MTRegisterPathCallbackWithRefcon")
+            return stream
+        }
+
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
+        let success = MTRegisterPathCallbackWithRefcon(deviceRef, pathEventCallback, refcon)
+
+        if success {
+            log.debug("Registered path callback")
+        } else {
+            log.error("Failed to register path callback")
+        }
+
+        return stream
+    }
+
+    /// Tear down the path callback registration.
+    public func removePathCallback() {
+        let continuation = pathState.withLock { state -> AsyncStream<MTPathEvent>.Continuation? in
+            guard state.stream != nil else { return nil }
+            let c = state.continuation
+            state.continuation = nil
+            state.stream = nil
+            return c
+        }
+        guard continuation != nil else { return }
+        continuation?.finish()
+
+        guard let MTUnregisterPathCallbackWithRefcon else {
+            log.warn("Failed to load MTUnregisterPathCallbackWithRefcon")
+            return
+        }
+        _ = MTUnregisterPathCallbackWithRefcon(deviceRef, pathEventCallback)
+        log.debug("Unregistered path callback")
+    }
+
     /// Remove contact frame callback
     public func removeContactFrameCallback() {
         let continuation = contactState.withLock { state -> AsyncStream<[MTContact]>.Continuation? in
@@ -647,5 +712,20 @@ let contactFrameCallback: MTFrameCallbackFunctionWithRefcon = { _, dataPtr, numT
 
     device.contactState.withLock { state in
         _ = state.continuation?.yield(touchesCopy)
+    }
+}
+
+// MARK: - C Path Callback
+
+let pathEventCallback: MTPathCallbackFunctionWithRefcon = { _, pathID, stage, touchPtr, refcon in
+    let device = Unmanaged<SubsurfaceDevice>.fromOpaque(refcon).takeUnretainedValue()
+    let contact = touchPtr.assumingMemoryBound(to: MTContact.self).pointee
+    let event = MTPathEvent(
+        pathID: Int(pathID),
+        stage: MTContactState(rawValue: stage) ?? .outOfRange,
+        contact: contact
+    )
+    device.pathState.withLock { state in
+        _ = state.continuation?.yield(event)
     }
 }

@@ -147,8 +147,6 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     /// Process a single frame of contacts. Returns a gesture event if one should be emitted.
     ///
-    /// Use this to drive processing yourself instead of going through ``events(from:)``.
-    ///
     /// Once a gesture kind is locked, the gesture stays alive as long as at least 2
     /// fingers remain on the surface, regardless of the originally-required count. It
     /// only ends when the count drops below 2. Mirrors macOS system gestures, where a

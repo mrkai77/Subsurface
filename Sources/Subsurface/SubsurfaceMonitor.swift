@@ -12,18 +12,18 @@ import Scribe
 /// Monitors all multitouch devices and provides a unified stream of contacts
 @Loggable
 public final class SubsurfaceMonitor: @unchecked Sendable {
-    /// Lock guarding every mutable property below. IOKit callbacks fire on
-    /// `notificationQueue`, public methods can be called from anywhere, and the
-    /// per-device forwarding Tasks run on Swift executors.
+    /// Locks ever mutable property below
     private let stateLock = NSLock()
+
     private var notifyPort: IONotificationPortRef?
     private var addedIterator: io_iterator_t = 0
     private var removedIterator: io_iterator_t = 0
     private var devices: [UInt64: SubsurfaceDevice] = [:]
     private var deviceTasks: [UInt64: Task<(), Never>] = [:]
-    /// Iterator `io_service_t` to device ID. Keys are retained via `IOObjectRetain`
-    /// while the device is tracked.
+
+    /// Iterator `io_service_t` to device ID. Keys are retained via `IOObjectRetain` while the device is tracked
     private var deviceServices: [io_service_t: UInt64] = [:]
+
     private var contactContinuation: AsyncStream<(SubsurfaceDevice, [MTContact])>.Continuation?
     private var isRunning = false
 
@@ -202,9 +202,9 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
                 continue
             }
 
-            // Retain the service handle for the device's lifetime. Mach port values
-            // are only stable while someone holds a reference, and we look this same
-            // port back up when `kIOTerminatedNotification` fires.
+            // Retain the service handle for the device's lifetime, as mach port values
+            // are only stable while someone holds a reference, and this same
+            // port is looked back up when `kIOTerminatedNotification` fires.
             IOObjectRetain(service)
             consumedService = true
 
@@ -246,9 +246,9 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
             removed.device.stop()
         }
     }
-
-    /// Heuristic for "is this a touch surface we want to track". Excludes the
-    /// Touch Bar; lets Magic Mouse through since it reports multitouch frames.
+    
+    /// Heuristic check for determining if this device is a likely trackpad.
+    /// Touch bars are excluded, while trackpad/magic mice are included.
     private func isLikelyTrackpad(_ device: SubsurfaceDevice) -> Bool {
         if device.familyID == 105 {
             log.debug("Skipping Touch Bar: \(device.name)")

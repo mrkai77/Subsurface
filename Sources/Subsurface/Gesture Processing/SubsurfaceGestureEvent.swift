@@ -43,7 +43,7 @@ public enum SubsurfaceGestureEvent: Sendable {
         public let centroid: CGPoint
 
         /// Angle from the gesture origin, in radians. MT uses y-up coordinates,
-        /// so 0 points right, π/2 up, and -π/2 down. Positive is counterclockwise,
+        /// so 0 points right, pi/2 up, and -pi/2 down. Positive is counterclockwise,
         /// matching the rotation event convention.
         public let angle: CGFloat
 
