@@ -71,7 +71,6 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     private var lastAngle: CGFloat?
     private var lastEventTime: TimeInterval?
 
-    private var maxTouchesInSequence: Int = 0
     private var inactivityTask: Task<(), Never>?
 
     private var continuation: AsyncStream<SubsurfaceGestureEvent>.Continuation?
@@ -91,12 +90,13 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// Convenience that extracts the contact frames from the monitor's device+contact stream.
     public func events(from monitor: SubsurfaceMonitor) -> AsyncStream<SubsurfaceGestureEvent> {
         let contactStream = AsyncStream<[MTContact]> { continuation in
-            Task {
+            let bridgeTask = Task {
                 for await (_, contacts) in monitor.contacts() {
                     continuation.yield(contacts)
                 }
                 continuation.finish()
             }
+            continuation.onTermination = { _ in bridgeTask.cancel() }
         }
         return events(from: contactStream)
     }
@@ -147,21 +147,27 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     /// Process a single frame of contacts. Returns a gesture event if one should be emitted.
     ///
-    /// Use this if you want to drive processing yourself instead of using ``events(from:)``.
+    /// Use this to drive processing yourself instead of going through ``events(from:)``.
+    ///
+    /// Once a gesture kind is locked, the gesture stays alive as long as at least 2
+    /// fingers remain on the surface, regardless of the originally-required count. It
+    /// only ends when the count drops below 2. Mirrors macOS system gestures, where a
+    /// 3-finger swipe keeps tracking after the user drops to 2 fingers.
     public func process(contacts: [MTContact]) -> SubsurfaceGestureEvent? {
         let filtered = SubsurfaceContactFilter.removePalms(from: contacts)
+        let count = filtered.count
 
-        // Track the maximum finger count seen in this gesture sequence
-        if filtered.count != maxTouchesInSequence,
-           filtered.isEmpty || filtered.count > maxTouchesInSequence {
-            maxTouchesInSequence = filtered.count
+        if gestureKind != nil {
+            guard count >= 2 else {
+                let event = makeEndEvent()
+                resetState()
+                return event
+            }
+            return emitTracked(filtered: filtered, phase: .changed, count: count)
         }
 
-        // Validate finger count
-        guard filtered.count == requiredFingerCount,
-              maxTouchesInSequence == requiredFingerCount else {
-            // If we were mid-gesture, cancel it
-            if phase == .began || phase == .changed || phase == .determining {
+        guard count == requiredFingerCount else {
+            if phase == .determining {
                 let event = makeCancelEvent()
                 resetState()
                 return event
@@ -174,7 +180,6 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         let angle = SubsurfaceContactFilter.interFingerAngle(of: filtered) ?? 0
         let now = Date.timeIntervalSinceReferenceDate
 
-        // Record origin on first valid frame
         guard let originCentroid, let originDistance, let originAngle else {
             originCentroid = centroid
             originDistance = distance
@@ -184,57 +189,63 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             lastAngle = angle
             lastEventTime = now
             phase = .determining
-            return .determining(centroid: centroid, fingerCount: filtered.count)
+            return .determining(centroid: centroid, fingerCount: count)
         }
 
-        // If gesture kind is not yet locked, try to disambiguate
-        if gestureKind == nil {
-            let distanceDelta = distance - originDistance
-            let angleDelta = angleDifference(from: originAngle, to: angle)
-            let translation = hypot(centroid.x - originCentroid.x, centroid.y - originCentroid.y)
+        // Disambiguation priority: pinch, rotation, then pan.
+        let distanceDelta = distance - originDistance
+        let angleDelta = angleDifference(from: originAngle, to: angle)
+        let translation = hypot(centroid.x - originCentroid.x, centroid.y - originCentroid.y)
 
-            // Priority: pinch -> rotation -> pan
-            if abs(distanceDelta) > minimumPinchDistance {
-                gestureKind = .pinch
-            } else if abs(angleDelta) > minimumRotation {
-                gestureKind = .rotation
-            } else if translation > minimumPanTranslation {
-                gestureKind = .pan
-            } else {
-                // Not enough movement yet, stay in .determining
-                lastCentroid = centroid
-                lastDistance = distance
-                lastAngle = angle
-                lastEventTime = now
-                return .determining(centroid: centroid, fingerCount: filtered.count)
-            }
-
-            // Gesture recognized, so emit .began
-            phase = .began
-            let event = makeEvent(
-                phase: .began,
-                centroid: centroid,
-                distance: distance,
-                angle: angle,
-                now: now,
-                fingerCount: filtered.count
-            )
+        if abs(distanceDelta) > minimumPinchDistance {
+            gestureKind = .pinch
+        } else if abs(angleDelta) > minimumRotation {
+            gestureKind = .rotation
+        } else if translation > minimumPanTranslation {
+            gestureKind = .pan
+        } else {
             lastCentroid = centroid
             lastDistance = distance
             lastAngle = angle
             lastEventTime = now
-            return event
+            return .determining(centroid: centroid, fingerCount: count)
         }
 
-        // Emit .changed
-        phase = .changed
+        phase = .began
         let event = makeEvent(
-            phase: .changed,
+            phase: .began,
             centroid: centroid,
             distance: distance,
             angle: angle,
             now: now,
-            fingerCount: filtered.count
+            fingerCount: count
+        )
+        lastCentroid = centroid
+        lastDistance = distance
+        lastAngle = angle
+        lastEventTime = now
+        return event
+    }
+
+    /// Emits a `.changed` (or `.ended`/`.cancelled`) event for an already-locked gesture.
+    private func emitTracked(
+        filtered: [MTContact],
+        phase newPhase: SubsurfaceGesturePhase,
+        count: Int
+    ) -> SubsurfaceGestureEvent? {
+        let centroid = SubsurfaceContactFilter.centroid(of: filtered)
+        let distance = SubsurfaceContactFilter.maxInterFingerDistance(of: filtered)
+        let angle = SubsurfaceContactFilter.interFingerAngle(of: filtered) ?? 0
+        let now = Date.timeIntervalSinceReferenceDate
+
+        phase = newPhase
+        let event = makeEvent(
+            phase: newPhase,
+            centroid: centroid,
+            distance: distance,
+            angle: angle,
+            now: now,
+            fingerCount: count
         )
         lastCentroid = centroid
         lastDistance = distance
@@ -289,7 +300,9 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
                 x: centroid.x - originCentroid.x,
                 y: centroid.y - originCentroid.y
             )
-            let panAngle = atan2(-translation.y, translation.x)
+            // MT coords are y-up, so atan2(dy, dx) matches the rotation convention
+            // (positive = counterclockwise from +x).
+            let panAngle = atan2(translation.y, translation.x)
             let panDistance = hypot(translation.x, translation.y)
 
             let velocity: CGPoint = if timeDelta > 0, let lastCentroid {
@@ -388,7 +401,6 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         lastDistance = nil
         lastAngle = nil
         lastEventTime = nil
-        maxTouchesInSequence = 0
     }
 
     /// Computes the shortest signed angular difference between two angles.

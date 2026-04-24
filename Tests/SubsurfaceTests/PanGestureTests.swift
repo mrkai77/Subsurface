@@ -47,12 +47,14 @@ struct PanGestureTests {
         let origin = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.3), p2: (x: 0.5, y: 0.3))
         _ = recognizer.process(contacts: origin)
 
-        // Move centroid upward past threshold (0.08): centroid y goes from 0.3 to 0.4
+        // Move centroid upward past threshold (0.08): centroid y goes 0.3 to 0.4.
+        // MT is y-up, so a pure upward translation gives angle +π/2.
         let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.4), p2: (x: 0.5, y: 0.4))
         let result = recognizer.process(contacts: moved)
 
         if case let .pan(pan) = result {
-            #expect(pan.angle < 0)
+            #expect(pan.angle > 0)
+            #expect(abs(pan.angle - .pi / 2) < 0.01)
         } else {
             Issue.record("Expected pan event")
         }
@@ -102,18 +104,17 @@ struct PanGestureTests {
         }
     }
 
-    @Test("Three fingers cancels a two-finger pan")
-    func threeFingersCancels() {
+    @Test("Pan keeps tracking when finger count stays >= 2")
+    func panStaysWithMoreFingers() {
         let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
 
         let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
         _ = recognizer.process(contacts: origin)
 
-        // Move past threshold (centroid from 0.35 to 0.45)
         let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
-        let began = recognizer.process(contacts: moved)
-        #expect(began != nil)
+        _ = recognizer.process(contacts: moved)
 
+        // Adding a third finger no longer cancels (macOS-style sticky behavior).
         let threeFinger = [
             ContactFactory.contact(x: 0.4, y: 0.5, finger: .index, hand: .right, id: 1),
             ContactFactory.contact(x: 0.5, y: 0.5, finger: .middle, hand: .right, id: 2),
@@ -122,9 +123,31 @@ struct PanGestureTests {
         let result = recognizer.process(contacts: threeFinger)
 
         if case let .pan(pan) = result {
-            #expect(pan.phase == .cancelled)
+            #expect(pan.phase == .changed)
+            #expect(pan.fingerCount == 3)
         } else {
-            Issue.record("Expected cancelled pan event")
+            Issue.record("Expected .changed pan event with 3 fingers, got \(String(describing: result))")
+        }
+    }
+
+    @Test("Pan ends when finger count drops below 2")
+    func panEndsWhenFingersLifted() {
+        let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
+
+        let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
+        _ = recognizer.process(contacts: origin)
+
+        let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
+        _ = recognizer.process(contacts: moved)
+
+        // Drop to 1 finger, gesture should end.
+        let single = [ContactFactory.contact(x: 0.5, y: 0.5, finger: .index, hand: .right, id: 1)]
+        let result = recognizer.process(contacts: single)
+
+        if case let .pan(pan) = result {
+            #expect(pan.phase == .ended)
+        } else {
+            Issue.record("Expected .ended pan event, got \(String(describing: result))")
         }
     }
 }

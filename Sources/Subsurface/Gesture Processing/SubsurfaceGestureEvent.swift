@@ -42,9 +42,9 @@ public enum SubsurfaceGestureEvent: Sendable {
         /// Average position of all active fingers, normalized to `0...1`.
         public let centroid: CGPoint
 
-        /// Angle from the gesture origin, in radians.
-        ///
-        /// Computed as `atan2(-translation.y, translation.x)`.
+        /// Angle from the gesture origin, in radians. MT uses y-up coordinates,
+        /// so 0 points right, π/2 up, and -π/2 down. Positive is counterclockwise,
+        /// matching the rotation event convention.
         public let angle: CGFloat
 
         /// Euclidean distance from the gesture origin, in normalized coordinates.
