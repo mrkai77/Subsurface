@@ -589,7 +589,10 @@ public final class SubsurfaceDevice: @unchecked Sendable {
             return
         }
 
-        MTUnregisterContactFrameCallback(deviceRef, nil)
+        // The framework matches callbacks by function-pointer, so we have to pass the
+        // original back. nil leaves it registered and firing into freed memory.
+        let callback = unsafeBitCast(contactFrameCallback, to: MTContactCallbackFunction.self)
+        MTUnregisterContactFrameCallback(deviceRef, callback)
         log.debug("Unregistered contact frame callback")
         contactStream = nil
     }

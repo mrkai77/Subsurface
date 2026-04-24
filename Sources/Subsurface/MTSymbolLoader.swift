@@ -29,7 +29,14 @@ private enum MTSymbolLoader {
         // Clear any prior error
         dlerror()
 
-        guard let sym = dlsym(handle, name.description) else {
+        let sym: UnsafeMutableRawPointer? = if name.hasPointerRepresentation {
+            // StaticString literals are stored null-terminated, so utf8Start works as a C string.
+            dlsym(handle, UnsafeRawPointer(name.utf8Start).assumingMemoryBound(to: CChar.self))
+        } else {
+            name.description.withCString { dlsym(handle, $0) }
+        }
+
+        guard let sym else {
             if let err = dlerror() {
                 log.error("Failed to load symbol \(name): \(String(cString: err))")
             } else {
@@ -69,9 +76,9 @@ typealias MTFrameCallbackFunction = @convention(c) (
 typealias MTFrameCallbackFunctionWithRefcon = @convention(c) (
     MTDeviceRef,
     UnsafeMutableRawPointer,
-    Int,
+    Int32,
     Double,
-    Int,
+    Int32,
     UnsafeMutableRawPointer
 ) -> ()
 
