@@ -37,7 +37,7 @@ public struct MTContact: Identifiable, Equatable {
     /// Helps to determine how much of the user's finger/palm is touching the trackpad. Can be greater than 1.
     public let totalCapacitance: Float
 
-    /// The pressue of the user's finger on the trackpad. Ranges from 0 (no touch) all the way to 1500+ (high-pressure touch).
+    /// The pressure of the user's finger on the trackpad. Ranges from 0 (no touch) all the way to 1500+ (high-pressure touch).
     public let pressure: Float
 
     /// The angle of the oval formed by this touch.

@@ -120,7 +120,9 @@ final class ContentViewModel {
 
     func reloadDevices() {
         availableDevicesByID = Dictionary(
-            SubsurfaceDevice.allDevices.map { ($0.deviceID ?? 0, $0) },
+            SubsurfaceDevice.allDevices.compactMap { device in
+                device.deviceID.map { ($0, device) }
+            },
             uniquingKeysWith: { _, new in new }
         )
     }

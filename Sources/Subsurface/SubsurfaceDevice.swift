@@ -484,13 +484,14 @@ public final class SubsurfaceDevice: @unchecked Sendable {
             return "Magic Trackpad"
 
         default:
+            let familyString = familyID.map(String.init) ?? "nil"
             // Touch Bar is very wide and narrow (>1000 width, <100 height)
             if let surfaceDimensions = sensorSurfaceDimensions,
                surfaceDimensions.width > 1000, surfaceDimensions.height < 100 {
-                return "Unknown Touch Bar (familyID: \(familyID))"
+                return "Unknown Touch Bar (familyID: \(familyString))"
             }
 
-            return "Unknown Device (familyID: \(familyID))"
+            return "Unknown Device (familyID: \(familyString))"
         }
     }
 
