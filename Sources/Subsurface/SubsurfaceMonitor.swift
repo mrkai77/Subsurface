@@ -12,16 +12,22 @@ import Scribe
 /// Monitors all multitouch devices and provides a unified stream of contacts
 @Loggable
 public final class SubsurfaceMonitor: @unchecked Sendable {
+    /// Lock guarding every mutable property below. IOKit callbacks fire on
+    /// `notificationQueue`, public methods can be called from anywhere, and the
+    /// per-device forwarding Tasks run on Swift executors.
+    private let stateLock = NSLock()
     private var notifyPort: IONotificationPortRef?
     private var addedIterator: io_iterator_t = 0
     private var removedIterator: io_iterator_t = 0
-    private let notificationQueue = DispatchQueue(label: "com.MrKai77.subsurface.monitor", qos: .userInteractive)
-
     private var devices: [UInt64: SubsurfaceDevice] = [:]
     private var deviceTasks: [UInt64: Task<(), Never>] = [:]
-    private var deviceServices: [io_service_t: UInt64] = [:] // Maps IOService to device ID
+    /// Iterator `io_service_t` to device ID. Keys are retained via `IOObjectRetain`
+    /// while the device is tracked.
+    private var deviceServices: [io_service_t: UInt64] = [:]
     private var contactContinuation: AsyncStream<(SubsurfaceDevice, [MTContact])>.Continuation?
     private var isRunning = false
+
+    private let notificationQueue = DispatchQueue(label: "com.MrKai77.subsurface.monitor", qos: .userInteractive)
 
     public init() {}
 
@@ -29,142 +35,147 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
         stop()
     }
 
+    private func withLock<T>(_ body: () -> T) -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return body()
+    }
+
     /// Start monitoring for device connections and disconnections
     public func start() {
-        guard !isRunning else {
+        let alreadyRunning = withLock { isRunning }
+        guard !alreadyRunning else {
             log.warn("Monitor is already running")
             return
         }
 
         log.info("Starting device monitor")
 
-        // Create notification port
-        notifyPort = IONotificationPortCreate(kIOMainPortDefault)
-        guard let notifyPort else {
+        let port = IONotificationPortCreate(kIOMainPortDefault)
+        guard let port else {
             log.error("Failed to create IONotificationPort")
             return
         }
 
-        IONotificationPortSetDispatchQueue(notifyPort, notificationQueue)
-        let matchingDict = IOServiceMatching("AppleMultitouchDevice")
+        IONotificationPortSetDispatchQueue(port, notificationQueue)
 
-        // Register for device added notifications
         let addedCallback: IOServiceMatchingCallback = { refcon, iterator in
             let monitor = Unmanaged<SubsurfaceMonitor>.fromOpaque(refcon!).takeUnretainedValue()
             monitor.handleDevicesAdded(iterator: iterator)
         }
-
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-
-        let addResult = IOServiceAddMatchingNotification(
-            notifyPort,
-            kIOFirstMatchNotification,
-            matchingDict,
-            addedCallback,
-            selfPtr,
-            &addedIterator
-        )
-
-        guard addResult == KERN_SUCCESS else {
-            log.error("Failed to register for device added notifications: \(addResult)")
-            return
-        }
-
-        // Process any devices that are already connected
-        handleDevicesAdded(iterator: addedIterator)
-
-        // Register for device removed notifications
-        let removedMatchingDict = IOServiceMatching("AppleMultitouchDevice")
         let removedCallback: IOServiceMatchingCallback = { refcon, iterator in
             let monitor = Unmanaged<SubsurfaceMonitor>.fromOpaque(refcon!).takeUnretainedValue()
             monitor.handleDevicesRemoved(iterator: iterator)
         }
 
-        let removeResult = IOServiceAddMatchingNotification(
-            notifyPort,
-            kIOTerminatedNotification,
-            removedMatchingDict,
-            removedCallback,
-            selfPtr,
-            &removedIterator
-        )
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
-        guard removeResult == KERN_SUCCESS else {
-            log.error("Failed to register for device removed notifications: \(removeResult)")
+        var addedIter: io_iterator_t = 0
+        let addResult = IOServiceAddMatchingNotification(
+            port,
+            kIOFirstMatchNotification,
+            IOServiceMatching("AppleMultitouchDevice"),
+            addedCallback,
+            selfPtr,
+            &addedIter
+        )
+        guard addResult == KERN_SUCCESS else {
+            log.error("Failed to register for device added notifications: \(addResult)")
+            IONotificationPortDestroy(port)
             return
         }
 
-        // Prepare the notification
-        handleDevicesRemoved(iterator: removedIterator)
+        var removedIter: io_iterator_t = 0
+        let removeResult = IOServiceAddMatchingNotification(
+            port,
+            kIOTerminatedNotification,
+            IOServiceMatching("AppleMultitouchDevice"),
+            removedCallback,
+            selfPtr,
+            &removedIter
+        )
+        guard removeResult == KERN_SUCCESS else {
+            log.error("Failed to register for device removed notifications: \(removeResult)")
+            IOObjectRelease(addedIter)
+            IONotificationPortDestroy(port)
+            return
+        }
 
-        isRunning = true
+        withLock {
+            notifyPort = port
+            addedIterator = addedIter
+            removedIterator = removedIter
+            isRunning = true
+        }
+
+        // Drain both iterators once. The first pass picks up already-connected
+        // devices, and is also what arms `kIOTerminatedNotification` on the
+        // removed-iterator side; without it the removal callback never fires.
+        handleDevicesAdded(iterator: addedIter)
+        handleDevicesRemoved(iterator: removedIter)
+
         log.info("Device monitor started")
     }
 
     /// Stop monitoring and clean up all devices
     public func stop() {
-        guard isRunning else { return }
+        stateLock.lock()
+        guard isRunning else {
+            stateLock.unlock()
+            return
+        }
+        let port = notifyPort
+        let addedIter = addedIterator
+        let removedIter = removedIterator
+        let tasks = deviceTasks
+        let trackedDevices = devices
+        let services = Array(deviceServices.keys)
+        let continuation = contactContinuation
+        notifyPort = nil
+        addedIterator = 0
+        removedIterator = 0
+        deviceTasks.removeAll()
+        devices.removeAll()
+        deviceServices.removeAll()
+        contactContinuation = nil
+        isRunning = false
+        stateLock.unlock()
 
         log.info("Stopping device monitor")
 
-        // Cancel all device tasks
-        for (_, task) in deviceTasks {
-            task.cancel()
-        }
-        deviceTasks.removeAll()
+        for task in tasks.values { task.cancel() }
+        for device in trackedDevices.values { device.stop() }
+        for service in services { IOObjectRelease(service) }
 
-        // Clean up all devices
-        for (_, device) in devices {
-            device.stop()
-        }
-        devices.removeAll()
-        deviceServices.removeAll()
+        if addedIter != 0 { IOObjectRelease(addedIter) }
+        if removedIter != 0 { IOObjectRelease(removedIter) }
+        if let port { IONotificationPortDestroy(port) }
 
-        // Release iterators
-        if addedIterator != 0 {
-            IOObjectRelease(addedIterator)
-            addedIterator = 0
-        }
+        continuation?.finish()
 
-        if removedIterator != 0 {
-            IOObjectRelease(removedIterator)
-            removedIterator = 0
-        }
-
-        // Destroy notification port
-        if let notifyPort {
-            IONotificationPortDestroy(notifyPort)
-            self.notifyPort = nil
-        }
-
-        // Finish contact stream
-        contactContinuation?.finish()
-        contactContinuation = nil
-
-        isRunning = false
         log.info("Device monitor stopped")
     }
 
     /// Create an async stream of contacts from all devices
     public func contacts() -> AsyncStream<(SubsurfaceDevice, [MTContact])> {
-        if contactContinuation != nil {
+        let existing = withLock { contactContinuation != nil }
+        if existing {
             log.warn("Contact stream already exists")
         }
 
-        let stream = AsyncStream<(SubsurfaceDevice, [MTContact])>(bufferingPolicy: .bufferingNewest(1)) { continuation in
-            self.contactContinuation = continuation
+        return AsyncStream<(SubsurfaceDevice, [MTContact])>(bufferingPolicy: .bufferingNewest(1)) { [weak self] continuation in
+            self?.withLock { self?.contactContinuation = continuation }
 
-            continuation.onTermination = { _ in
-                self.contactContinuation = nil
+            continuation.onTermination = { [weak self] _ in
+                self?.withLock { self?.contactContinuation = nil }
             }
         }
-
-        return stream
     }
 
     private func handleDevicesAdded(iterator: io_iterator_t) {
         while case let service = IOIteratorNext(iterator), service != 0 {
-            defer { IOObjectRelease(service) }
+            var consumedService = false
+            defer { if !consumedService { IOObjectRelease(service) } }
 
             guard let device = SubsurfaceDevice(service: service) else {
                 log.warn("Failed to create device from service")
@@ -176,41 +187,40 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
                 continue
             }
 
-            // Skip if we already have this device
-            guard devices[deviceID] == nil else {
+            let alreadyTracked = withLock { devices[deviceID] != nil }
+            if alreadyTracked {
                 log.debug("Device \(deviceID) already tracked")
                 continue
             }
 
-            if let dimensions = device.sensorSurfaceDimensions,
-               dimensions.width < 2500 || dimensions.height < 2500 {
-                log.debug("Skipping potential non-trackpad device: \(device.name) - dimensions: \(Double(dimensions.width) / 1000)x\(Double(dimensions.height) / 1000)cm")
-                continue
-            }
+            guard isLikelyTrackpad(device) else { continue }
 
             log.info("Device connected: \(device.name) (ID: \(deviceID))")
 
-            // Store the IOService mapping for removal tracking
-            if let deviceService = device.service {
-                deviceServices[deviceService] = deviceID
-            }
-
-            // Start the device
             guard device.start() else {
                 log.error("Failed to start device \(deviceID)")
                 continue
             }
 
-            // Store the device
-            devices[deviceID] = device
+            // Retain the service handle for the device's lifetime. Mach port values
+            // are only stable while someone holds a reference, and we look this same
+            // port back up when `kIOTerminatedNotification` fires.
+            IOObjectRetain(service)
+            consumedService = true
 
-            // Set up contact stream for this device
-            let task = Task {
+            let task = Task { [weak self] in
                 for await contacts in device.contactFrames() {
-                    self.contactContinuation?.yield((device, contacts))
+                    guard let self else { break }
+                    let continuation = withLock { contactContinuation }
+                    continuation?.yield((device, contacts))
                 }
             }
-            deviceTasks[deviceID] = task
+
+            withLock {
+                devices[deviceID] = device
+                deviceServices[service] = deviceID
+                deviceTasks[deviceID] = task
+            }
         }
     }
 
@@ -218,29 +228,42 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
 
-            guard let deviceID = deviceServices[service] else {
-                continue
+            let removed: (device: SubsurfaceDevice, task: Task<(), Never>?)? = withLock {
+                guard let deviceID = deviceServices.removeValue(forKey: service),
+                      let device = devices.removeValue(forKey: deviceID) else {
+                    return nil
+                }
+                let task = deviceTasks.removeValue(forKey: deviceID)
+                return (device, task)
             }
 
-            guard let device = devices[deviceID] else {
-                continue
-            }
+            guard let removed else { continue }
 
-            log.info("Device disconnected: \(device.name) (ID: \(deviceID))")
+            IOObjectRelease(service)
 
-            // Cancel the task
-            deviceTasks[deviceID]?.cancel()
-            deviceTasks.removeValue(forKey: deviceID)
-
-            // Stop and remove device
-            device.stop()
-            devices.removeValue(forKey: deviceID)
-            deviceServices.removeValue(forKey: service)
+            log.info("Device disconnected: \(removed.device.name)")
+            removed.task?.cancel()
+            removed.device.stop()
         }
+    }
+
+    /// Heuristic for "is this a touch surface we want to track". Excludes the
+    /// Touch Bar; lets Magic Mouse through since it reports multitouch frames.
+    private func isLikelyTrackpad(_ device: SubsurfaceDevice) -> Bool {
+        if device.familyID == 105 {
+            log.debug("Skipping Touch Bar: \(device.name)")
+            return false
+        }
+        if let dimensions = device.sensorSurfaceDimensions,
+           dimensions.width > 1000, dimensions.height < 100 {
+            log.debug("Skipping Touch Bar-like device: \(device.name) - \(Double(dimensions.width) / 1000)x\(Double(dimensions.height) / 1000)cm")
+            return false
+        }
+        return true
     }
 
     /// Get all currently connected devices
     public var activeDevices: [SubsurfaceDevice] {
-        Array(devices.values)
+        withLock { Array(devices.values) }
     }
 }
