@@ -11,7 +11,6 @@ import Foundation
 public enum MTContactHand: Int32, CustomStringConvertible {
     case left = -1
     case right = 1
-    case unknown = 0
 
     public var description: String {
         switch self {
@@ -19,8 +18,6 @@ public enum MTContactHand: Int32, CustomStringConvertible {
             "Right"
         case .left:
             "Left"
-        case .unknown:
-            "Unknown"
         }
     }
 }

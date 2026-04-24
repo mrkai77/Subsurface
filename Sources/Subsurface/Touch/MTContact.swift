@@ -26,7 +26,8 @@ public struct MTContact: Identifiable, Equatable {
     private let _fingerID: Int32
     public var finger: MTContactFinger? { .init(rawValue: _fingerID) }
 
-    /// -1 for the left hand, +1 for the right hand. 0 for unknown values?
+    /// -1 for left, +1 for right. Any other value maps to `nil`, which usually
+    /// means the framework couldn't pick a side (e.g. for palms).
     private let _handID: Int32
     public var hand: MTContactHand? { .init(rawValue: _handID) }
 
