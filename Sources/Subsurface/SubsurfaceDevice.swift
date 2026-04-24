@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import os
 import Scribe
 
 /// Represents a multitouch device (trackpad)
@@ -13,8 +14,13 @@ import Scribe
 public final class SubsurfaceDevice: @unchecked Sendable {
     private let deviceRef: MTDeviceRef
 
-    private var contactStream: AsyncStream<[MTContact]>?
-    var contactContinuation: AsyncStream<[MTContact]>.Continuation?
+    struct ContactState {
+        var stream: AsyncStream<[MTContact]>?
+        var continuation: AsyncStream<[MTContact]>.Continuation?
+    }
+    /// Lock guarding the contact stream pair. The C frame callback fires on a
+    /// framework thread, while register/unregister can run on any caller thread.
+    let contactState = OSAllocatedUnfairLock<ContactState>(initialState: .init())
 
     /// Controls whether the device should automatically restart after the system wakes from sleep
     public var autoRestartOnWake: Bool = true
@@ -127,7 +133,6 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         if isRunning {
             stop()
         }
-        removeContactFrameCallback()
         MTDeviceRelease?(deviceRef)
     }
 
@@ -137,14 +142,7 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     /// - Returns: `true` if the device started successfully, `false` otherwise
     @discardableResult
     public func start() -> Bool {
-        let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
-
-        if error != noErr {
-            log.error("Error starting device: \(error ?? -1)")
-            return false
-        }
-
-        // Add sleep/wake observers when device starts
+        guard rawStart() else { return false }
         addSleepWakeObservers()
         return true
     }
@@ -155,26 +153,36 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     public func stop() -> Bool {
         removeSleepWakeObservers()
         removeContactFrameCallback()
+        return rawStop()
+    }
 
-        return MTDeviceStop?(deviceRef) == noErr
+    /// Start the underlying MT device without touching observers/callbacks.
+    private func rawStart() -> Bool {
+        let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
+        if error != noErr {
+            log.error("Error starting device: \(error ?? -1)")
+            return false
+        }
+        return true
+    }
+
+    /// Stop the underlying MT device without touching observers/callbacks.
+    @discardableResult
+    private func rawStop() -> Bool {
+        MTDeviceStop?(deviceRef) == noErr
     }
 
     private func restart() async {
         guard autoRestartOnWake, wakeObserver != nil else { return }
 
         log.info("Restarting device after wake")
-
-        // Stop device (without removing observers)
-        _ = MTDeviceStop?(deviceRef)
-
+        _ = rawStop()
         try? await Task.sleep(for: .seconds(1))
 
-        // Restart device
-        let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
-        if error == noErr {
+        if rawStart() {
             log.info("Device restarted successfully")
         } else {
-            log.error("Failed to restart device: \(error ?? -1)")
+            log.error("Failed to restart device")
         }
     }
 
@@ -544,18 +552,22 @@ public final class SubsurfaceDevice: @unchecked Sendable {
 
     /// Create an async stream of contact frame events
     public func contactFrames() -> AsyncStream<[MTContact]> {
-        if let existing = contactStream {
+        if let existing = contactState.withLock({ $0.stream }) {
             return existing
         }
 
         // Use buffering policy that keeps only the newest value to prevent event queue buildup
         let stream = AsyncStream<[MTContact]>(bufferingPolicy: .bufferingNewest(1)) { continuation in
-            self.contactContinuation = continuation
+            contactState.withLock { state in
+                state.continuation = continuation
+            }
 
-            continuation.onTermination = { _ in
-                self.contactContinuation = nil
+            continuation.onTermination = { [weak self] _ in
+                self?.contactState.withLock { $0.continuation = nil }
             }
         }
+
+        contactState.withLock { $0.stream = stream }
 
         guard let MTRegisterContactFrameCallbackWithRefcon else {
             log.warn("Failed to load MTRegisterContactFrameCallbackWithRefcon")
@@ -571,18 +583,20 @@ public final class SubsurfaceDevice: @unchecked Sendable {
             log.error("Failed to register contact frame callback")
         }
 
-        contactStream = stream
         return stream
     }
 
     /// Remove contact frame callback
     public func removeContactFrameCallback() {
-        guard contactStream != nil else { return }
-
-        if let continuation = contactContinuation {
-            continuation.finish()
-            contactContinuation = nil
+        let continuation = contactState.withLock { state -> AsyncStream<[MTContact]>.Continuation? in
+            guard state.stream != nil else { return nil }
+            let c = state.continuation
+            state.continuation = nil
+            state.stream = nil
+            return c
         }
+        guard continuation != nil else { return }
+        continuation?.finish()
 
         guard let MTUnregisterContactFrameCallback else {
             log.warn("Failed to load MTUnregisterContactFrameCallback")
@@ -594,7 +608,6 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         let callback = unsafeBitCast(contactFrameCallback, to: MTContactCallbackFunction.self)
         MTUnregisterContactFrameCallback(deviceRef, callback)
         log.debug("Unregistered contact frame callback")
-        contactStream = nil
     }
 
     // MARK: - Haptics
@@ -616,7 +629,7 @@ public final class SubsurfaceDevice: @unchecked Sendable {
 
 extension SubsurfaceDevice: CustomStringConvertible {
     public var description: String {
-        "MultitouchDevice(isRunning: \(isRunning), familyID: \(familyID ?? -1), version: \(version ?? -1)))"
+        "MultitouchDevice(isRunning: \(isRunning), familyID: \(familyID ?? -1), version: \(version ?? -1))"
     }
 }
 
@@ -624,7 +637,6 @@ extension SubsurfaceDevice: CustomStringConvertible {
 
 let contactFrameCallback: MTFrameCallbackFunctionWithRefcon = { _, dataPtr, numTouches, _, _, refcon in
     let device = Unmanaged<SubsurfaceDevice>.fromOpaque(refcon).takeUnretainedValue()
-    guard let continuation = device.contactContinuation else { return }
 
     let touches = UnsafeBufferPointer(
         start: dataPtr.assumingMemoryBound(to: MTContact.self),
@@ -632,5 +644,7 @@ let contactFrameCallback: MTFrameCallbackFunctionWithRefcon = { _, dataPtr, numT
     )
     let touchesCopy = Array(touches)
 
-    continuation.yield(touchesCopy)
+    device.contactState.withLock { state in
+        _ = state.continuation?.yield(touchesCopy)
+    }
 }
