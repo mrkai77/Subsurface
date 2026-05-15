@@ -24,7 +24,7 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
     /// Iterator `io_service_t` to device ID. Keys are retained via `IOObjectRetain` while the device is tracked
     private var deviceServices: [io_service_t: UInt64] = [:]
 
-    private var contactContinuation: AsyncStream<(SubsurfaceDevice, [MTContact])>.Continuation?
+    private let contactSubscribers = AsyncBroadcastHub<(SubsurfaceDevice, [MTContact])>()
     private var isRunning = false
 
     private let notificationQueue = DispatchQueue(label: "com.MrKai77.subsurface.monitor", qos: .userInteractive)
@@ -45,7 +45,7 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
     public func start() {
         let alreadyRunning = withLock { isRunning }
         guard !alreadyRunning else {
-            log.warn("Monitor is already running")
+            log.debug("Monitor start requested while already running")
             return
         }
 
@@ -120,56 +120,47 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
     /// Stop monitoring and clean up all devices
     public func stop() {
         stateLock.lock()
-        guard isRunning else {
-            stateLock.unlock()
-            return
-        }
+        let wasRunning = isRunning
         let port = notifyPort
         let addedIter = addedIterator
         let removedIter = removedIterator
         let tasks = deviceTasks
         let trackedDevices = devices
         let services = Array(deviceServices.keys)
-        let continuation = contactContinuation
         notifyPort = nil
         addedIterator = 0
         removedIterator = 0
         deviceTasks.removeAll()
         devices.removeAll()
         deviceServices.removeAll()
-        contactContinuation = nil
         isRunning = false
         stateLock.unlock()
 
+        let finishedSubscriberCount = contactSubscribers.finishAll()
+
+        guard wasRunning || finishedSubscriberCount > 0 else { return }
+
         log.info("Stopping device monitor")
 
-        for task in tasks.values { task.cancel() }
-        for device in trackedDevices.values { device.stop() }
-        for service in services { IOObjectRelease(service) }
+        if wasRunning {
+            for task in tasks.values { task.cancel() }
+            for device in trackedDevices.values { device.stop() }
+            for service in services { IOObjectRelease(service) }
 
-        if addedIter != 0 { IOObjectRelease(addedIter) }
-        if removedIter != 0 { IOObjectRelease(removedIter) }
-        if let port { IONotificationPortDestroy(port) }
-
-        continuation?.finish()
+            if addedIter != 0 { IOObjectRelease(addedIter) }
+            if removedIter != 0 { IOObjectRelease(removedIter) }
+            if let port { IONotificationPortDestroy(port) }
+        }
 
         log.info("Device monitor stopped")
     }
 
-    /// Create an async stream of contacts from all devices
+    /// Create an async stream of contacts from all devices.
+    ///
+    /// Each caller receives an independent stream, and every active subscriber
+    /// receives the same contact frames broadcast by the monitor.
     public func contacts() -> AsyncStream<(SubsurfaceDevice, [MTContact])> {
-        let existing = withLock { contactContinuation != nil }
-        if existing {
-            log.warn("Contact stream already exists")
-        }
-
-        return AsyncStream<(SubsurfaceDevice, [MTContact])>(bufferingPolicy: .bufferingNewest(1)) { [weak self] continuation in
-            self?.withLock { self?.contactContinuation = continuation }
-
-            continuation.onTermination = { [weak self] _ in
-                self?.withLock { self?.contactContinuation = nil }
-            }
-        }
+        contactSubscribers.stream()
     }
 
     private func handleDevicesAdded(iterator: io_iterator_t) {
@@ -211,8 +202,7 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
             let task = Task { [weak self] in
                 for await contacts in device.contactFrames() {
                     guard let self else { break }
-                    let continuation = withLock { contactContinuation }
-                    continuation?.yield((device, contacts))
+                    contactSubscribers.yield((device, contacts))
                 }
             }
 
