@@ -21,14 +21,14 @@ struct PinchGestureTests {
 
         if case let .pinch(pinch) = result {
             #expect(pinch.phase == .began)
-            #expect(pinch.scale > 1.0)
+            #expect(pinch.distance > pinch.originDistance)
         } else {
             Issue.record("Expected pinch event, got \(String(describing: result))")
         }
     }
 
-    @Test("Pinch scale is ratio of current to initial distance")
-    func pinchScale() {
+    @Test("Pinch reports current and origin inter-finger distance")
+    func pinchDistance() {
         let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
 
         let origin = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.6, y: 0.5))
@@ -38,7 +38,8 @@ struct PinchGestureTests {
         let result = recognizer.process(contacts: spread)
 
         if case let .pinch(pinch) = result {
-            #expect(abs(pinch.scale - 2.0) < 0.01)
+            #expect(abs(pinch.originDistance - 0.2) < 0.01)
+            #expect(abs(pinch.distance - 0.4) < 0.01)
         } else {
             Issue.record("Expected pinch event")
         }
@@ -73,7 +74,7 @@ struct PinchGestureTests {
         #expect(result?.phase == .determining)
     }
 
-    @Test("Pinch inward detected with scale < 1.0")
+    @Test("Pinch inward detected when distance shrinks below origin")
     func pinchInward() {
         let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
 
@@ -87,8 +88,9 @@ struct PinchGestureTests {
 
         if case let .pinch(pinch) = result {
             #expect(pinch.phase == .began)
-            #expect(pinch.scale < 1.0) // Squeezing = scale < 1
-            #expect(abs(pinch.scale - 0.5) < 0.01) // 0.2 / 0.4 = 0.5
+            #expect(pinch.distance < pinch.originDistance)
+            #expect(abs(pinch.originDistance - 0.4) < 0.01)
+            #expect(abs(pinch.distance - 0.2) < 0.01)
         } else {
             Issue.record("Expected pinch event for inward gesture, got \(String(describing: result))")
         }
@@ -109,7 +111,7 @@ struct PinchGestureTests {
 
         if case let .pinch(pinch) = result {
             #expect(pinch.phase == .changed)
-            #expect(pinch.scale > 2.0)
+            #expect(pinch.distance > 2.0 * pinch.originDistance)
         } else {
             Issue.record("Expected pinch .changed event")
         }

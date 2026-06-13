@@ -323,19 +323,17 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             ))
 
         case .pinch:
-            let scale = originDistance > 0 ? distance / originDistance : 1.0
-
             let velocity: CGFloat
             if timeDelta > 0, let lastDistance {
-                let lastScale = originDistance > 0 ? lastDistance / originDistance : 1.0
-                velocity = (scale - lastScale) / timeDelta
+                velocity = (distance - lastDistance) / timeDelta
             } else {
                 velocity = 0
             }
 
             return .pinch(SubsurfaceGestureEvent.PinchEvent(
                 phase: phase,
-                scale: scale,
+                distance: distance,
+                originDistance: originDistance,
                 velocity: velocity,
                 centroid: centroid,
                 fingerCount: fingerCount

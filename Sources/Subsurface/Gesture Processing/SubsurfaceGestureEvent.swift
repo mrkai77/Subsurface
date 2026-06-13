@@ -59,13 +59,14 @@ public enum SubsurfaceGestureEvent: Sendable {
         /// The current phase of this gesture.
         public let phase: SubsurfaceGesturePhase
 
-        /// Ratio of current inter-finger distance to the initial distance.
-        ///
-        /// Values greater than `1.0` indicate fingers are spreading apart;
-        /// values less than `1.0` indicate fingers are squeezing together.
-        public let scale: CGFloat
+        /// Current inter-finger distance, normalized to trackpad space (0...1).
+        public let distance: CGFloat
 
-        /// Rate of scale change per second.
+        /// Inter-finger distance captured at `.began`, normalized to trackpad space.
+        /// Constant for the duration of one gesture stroke.
+        public let originDistance: CGFloat
+
+        /// Rate of inter-finger distance change, in normalized units per second.
         public let velocity: CGFloat
 
         /// Midpoint between fingers, normalized to `0...1`.
