@@ -128,7 +128,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
                 // Stream ended, so finalize if mid-gesture
                 if let self, phase == .began || phase == .changed || phase == .determining {
-                    if let event = makeEndEvent() {
+                    if let event = makeEndEvent(reason: .cancelled) {
                         continuation.yield(event)
                     }
                     resetState()
@@ -152,12 +152,14 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// only ends when the count drops below 2. Mirrors macOS system gestures, where a
     /// 3-finger swipe keeps tracking after the user drops to 2 fingers.
     public func process(contacts: [MTContact]) -> SubsurfaceGestureEvent? {
-        let filtered = SubsurfaceContactFilter.removePalms(from: contacts)
+        let filtered = SubsurfaceContactFilter.activeTouches(
+            from: SubsurfaceContactFilter.removePalms(from: contacts)
+        )
         let count = filtered.count
 
         if gestureKind != nil {
             guard count >= 2 else {
-                let event = makeEndEvent()
+                let event = makeEndEvent(reason: .lifted)
                 resetState()
                 return event
             }
@@ -166,7 +168,9 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
         guard count == requiredFingerCount else {
             if phase == .determining {
-                let event = makeCancelEvent()
+                let event: SubsurfaceGestureEvent = count < requiredFingerCount
+                    ? .unresolvedEnded(.lifted)
+                    : .unresolvedEnded(.cancelled)
                 resetState()
                 return event
             }
@@ -255,7 +259,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// Reset the recognizer to its initial state.
     public func reset() {
         if phase == .began || phase == .changed || phase == .determining {
-            if let event = makeEndEvent() {
+            if let event = makeEndEvent(reason: .cancelled) {
                 continuation?.yield(event)
             }
         }
@@ -271,7 +275,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             if Task.isCancelled { return }
 
             if phase == .began || phase == .changed || phase == .determining {
-                if let event = makeEndEvent() {
+                if let event = makeEndEvent(reason: .timedOut) {
                     continuation?.yield(event)
                 }
             }
@@ -323,11 +327,10 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             ))
 
         case .pinch:
-            let velocity: CGFloat
-            if timeDelta > 0, let lastDistance {
-                velocity = (distance - lastDistance) / timeDelta
+            let velocity: CGFloat = if timeDelta > 0, let lastDistance {
+                (distance - lastDistance) / timeDelta
             } else {
-                velocity = 0
+                0
             }
 
             return .pinch(SubsurfaceGestureEvent.PinchEvent(
@@ -363,22 +366,14 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         }
     }
 
-    private func makeEndEvent() -> SubsurfaceGestureEvent? {
+    private func makeEndEvent(reason: SubsurfaceGestureEvent.UnresolvedEndReason) -> SubsurfaceGestureEvent? {
+        guard gestureKind != nil else {
+            return .unresolvedEnded(reason)
+        }
+
         guard let lastCentroid, let lastDistance, let lastAngle else { return nil }
         return makeEvent(
             phase: .ended,
-            centroid: lastCentroid,
-            distance: lastDistance,
-            angle: lastAngle,
-            now: Date.timeIntervalSinceReferenceDate,
-            fingerCount: requiredFingerCount
-        )
-    }
-
-    private func makeCancelEvent() -> SubsurfaceGestureEvent? {
-        guard let lastCentroid, let lastDistance, let lastAngle else { return nil }
-        return makeEvent(
-            phase: .cancelled,
             centroid: lastCentroid,
             distance: lastDistance,
             angle: lastAngle,

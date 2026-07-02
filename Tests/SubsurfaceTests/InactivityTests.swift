@@ -40,6 +40,33 @@ struct InactivityTests {
         }
     }
 
+    @Test("Determining gesture timeout emits unresolved timedOut event")
+    func inactivityEndsUnresolvedGesture() async {
+        let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
+        recognizer.inactivityTimeout = .milliseconds(100)
+
+        let contactStream = AsyncStream<[MTContact]> { continuation in
+            let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
+            continuation.yield(origin)
+        }
+
+        var events: [SubsurfaceGestureEvent] = []
+        let eventStream = recognizer.events(from: contactStream)
+
+        let deadline = ContinuousClock.now + .seconds(2)
+        for await event in eventStream {
+            events.append(event)
+            if event.phase == .ended { break }
+            if ContinuousClock.now > deadline { break }
+        }
+
+        if case .unresolvedEnded(.timedOut) = events.last {
+            #expect(events.last?.phase == .ended)
+        } else {
+            Issue.record("Expected unresolved timedOut event")
+        }
+    }
+
     @Test("Reset clears recognizer state")
     func resetClearsState() {
         let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)

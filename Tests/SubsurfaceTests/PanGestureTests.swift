@@ -72,6 +72,41 @@ struct PanGestureTests {
         #expect(result?.phase == .determining)
     }
 
+    @Test("Unresolved gesture emits lifted when active finger count drops")
+    func unresolvedGestureEndsOnLift() {
+        let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
+
+        let origin = ContactFactory.twoFingers(p1: (x: 0.5, y: 0.5), p2: (x: 0.6, y: 0.5))
+        _ = recognizer.process(contacts: origin)
+
+        let result = recognizer.process(contacts: [])
+        if case .unresolvedEnded(.lifted) = result {
+            #expect(result?.phase == .ended)
+        } else {
+            Issue.record("Expected unresolved lifted event")
+        }
+    }
+
+    @Test("Breaking contacts do not keep unresolved gesture alive")
+    func breakingContactsEndUnresolvedGesture() {
+        let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
+
+        let origin = ContactFactory.twoFingers(p1: (x: 0.5, y: 0.5), p2: (x: 0.6, y: 0.5))
+        _ = recognizer.process(contacts: origin)
+
+        let breakingContacts = [
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .index, hand: .right, id: 1, contactState: .breaking),
+            ContactFactory.contact(x: 0.6, y: 0.5, finger: .middle, hand: .right, id: 2, contactState: .breaking)
+        ]
+        let result = recognizer.process(contacts: breakingContacts)
+
+        if case .unresolvedEnded(.lifted) = result {
+            #expect(result?.phase == .ended)
+        } else {
+            Issue.record("Expected unresolved lifted event")
+        }
+    }
+
     @Test("Backward motion continues gesture with decreasing distance")
     func backwardMotionContinues() {
         let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)

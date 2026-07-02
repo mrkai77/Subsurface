@@ -11,6 +11,8 @@ import CoreGraphics
 public enum SubsurfaceGestureEvent: Sendable {
     /// Correct finger count detected, but gesture type not yet determined.
     case determining(centroid: CGPoint, fingerCount: Int)
+    /// Touches ended before the recognizer resolved a concrete gesture kind.
+    case unresolvedEnded(UnresolvedEndReason)
     /// A pan (directional swipe) gesture was detected.
     case pan(PanEvent)
     /// A pinch (spread/squeeze) gesture was detected.
@@ -22,9 +24,28 @@ public enum SubsurfaceGestureEvent: Sendable {
     public var phase: SubsurfaceGesturePhase {
         switch self {
         case .determining: .determining
+        case let .unresolvedEnded(reason): reason.phase
         case let .pan(event): event.phase
         case let .pinch(event): event.phase
         case let .rotation(event): event.phase
+        }
+    }
+
+    public enum UnresolvedEndReason: Sendable, Equatable {
+        /// The active finger count dropped before a gesture kind was resolved.
+        case lifted
+        /// Contact frames stopped before a gesture kind was resolved.
+        case timedOut
+        /// The gesture became invalid before a gesture kind was resolved.
+        case cancelled
+
+        fileprivate var phase: SubsurfaceGesturePhase {
+            switch self {
+            case .lifted, .timedOut:
+                .ended
+            case .cancelled:
+                .cancelled
+            }
         }
     }
 
