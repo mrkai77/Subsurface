@@ -185,4 +185,39 @@ struct PanGestureTests {
             Issue.record("Expected .ended pan event, got \(String(describing: result))")
         }
     }
+
+    @Test("Pan ends on finger count change when exact-count tracking is required")
+    func panEndsOnFingerCountChangeWhenExactCountRequired() {
+        let recognizer = SubsurfaceGestureRecognizer(
+            fingerCount: 3,
+            requiresExactFingerCountToContinue: true
+        )
+
+        let origin = [
+            ContactFactory.contact(x: 0.3, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.4, y: 0.5, finger: .middle, hand: .right, id: 2),
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .ring, hand: .right, id: 3)
+        ]
+        _ = recognizer.process(contacts: origin)
+
+        let moved = [
+            ContactFactory.contact(x: 0.4, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .middle, hand: .right, id: 2),
+            ContactFactory.contact(x: 0.6, y: 0.5, finger: .ring, hand: .right, id: 3)
+        ]
+        let began = recognizer.process(contacts: moved)
+        #expect(began?.phase == .began)
+
+        let lifted = [
+            ContactFactory.contact(x: 0.4, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .middle, hand: .right, id: 2)
+        ]
+        let result = recognizer.process(contacts: lifted)
+
+        if case let .pan(pan) = result {
+            #expect(pan.phase == .ended)
+        } else {
+            Issue.record("Expected .ended pan event after finger-count change, got \(String(describing: result))")
+        }
+    }
 }

@@ -47,6 +47,13 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// The required number of fingers for this gesture (after palm rejection).
     public var requiredFingerCount: Int
 
+    /// Whether a resolved gesture must keep the original finger count to continue.
+    ///
+    /// When enabled, resolved gestures end as soon as the active finger count differs
+    /// from ``requiredFingerCount``. When disabled, resolved gestures keep tracking as
+    /// long as at least two fingers remain active.
+    public var requiresExactFingerCountToContinue: Bool
+
     /// Minimum centroid translation (normalized) to trigger a pan gesture.
     public var minimumPanTranslation: CGFloat = 0.08
 
@@ -81,8 +88,12 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         case rotation
     }
 
-    public init(fingerCount: Int = 2) {
+    public init(
+        fingerCount: Int = 2,
+        requiresExactFingerCountToContinue: Bool = false
+    ) {
         self.requiredFingerCount = fingerCount
+        self.requiresExactFingerCountToContinue = requiresExactFingerCountToContinue
     }
 
     /// Creates an `AsyncStream` of gesture events from a ``SubsurfaceMonitor``.
@@ -147,10 +158,10 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     /// Process a single frame of contacts. Returns a gesture event if one should be emitted.
     ///
-    /// Once a gesture kind is locked, the gesture stays alive as long as at least 2
-    /// fingers remain on the surface, regardless of the originally-required count. It
-    /// only ends when the count drops below 2. Mirrors macOS system gestures, where a
-    /// 3-finger swipe keeps tracking after the user drops to 2 fingers.
+    /// Once a gesture kind is locked, the default behavior keeps the gesture alive as
+    /// long as at least 2 fingers remain on the surface, regardless of the originally-
+    /// required count. Set ``requiresExactFingerCountToContinue`` to `true` to
+    /// require the exact finger count for the whole gesture.
     public func process(contacts: [MTContact]) -> SubsurfaceGestureEvent? {
         let filtered = SubsurfaceContactFilter.activeTouches(
             from: SubsurfaceContactFilter.removePalms(from: contacts)
@@ -158,7 +169,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         let count = filtered.count
 
         if gestureKind != nil {
-            guard count >= 2 else {
+            guard shouldContinueResolvedGesture(activeFingerCount: count) else {
                 let event = makeEndEvent(reason: .lifted)
                 resetState()
                 return event
@@ -227,6 +238,14 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         lastAngle = angle
         lastEventTime = now
         return event
+    }
+
+    private func shouldContinueResolvedGesture(activeFingerCount count: Int) -> Bool {
+        if requiresExactFingerCountToContinue {
+            return count == requiredFingerCount
+        }
+
+        return count >= 2
     }
 
     /// Emits a `.changed` (or `.ended`/`.cancelled`) event for an already-locked gesture.

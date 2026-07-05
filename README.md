@@ -86,7 +86,7 @@ for await event in recognizer.events(from: monitor) {
 }
 ```
 
-The recognizer starts in a determining phase, then locks onto the first gesture that crosses its threshold. Pinch wins first, then rotation, then pan. Once a gesture begins, it keeps tracking while at least two fingers remain on the surface, which matches the sticky feel of macOS system gestures.
+The recognizer starts in a determining phase, then locks onto the first gesture that crosses its threshold. Pinch wins first, then rotation, then pan. By default, once macOS recognizes a gesture, it lets the user lift or add fingers and continue the same gesture as long as at least two fingers remain on the surface. Subsurface matches that sticky behavior; set `requiresExactFingerCountToContinue` to `true` if a resolved gesture should end as soon as the active finger count differs from `fingerCount`.
 
 You can tune the thresholds directly:
 
