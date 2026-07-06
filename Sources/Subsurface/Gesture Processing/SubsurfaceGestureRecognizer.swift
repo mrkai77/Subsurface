@@ -9,6 +9,27 @@ import CoreGraphics
 import Foundation
 import Scribe
 
+/// Gesture kinds that a ``SubsurfaceGestureRecognizer`` can resolve.
+public struct SubsurfaceGestureTypes: OptionSet, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    /// Directional swipe gestures.
+    public static let swipe = SubsurfaceGestureTypes(rawValue: 1 << 0)
+
+    /// Magnification gestures.
+    public static let magnify = SubsurfaceGestureTypes(rawValue: 1 << 1)
+
+    /// Rotation gestures.
+    public static let rotation = SubsurfaceGestureTypes(rawValue: 1 << 2)
+
+    /// All supported gesture kinds.
+    public static let all: SubsurfaceGestureTypes = [.swipe, .magnify, .rotation]
+}
+
 /// A combined gesture recognizer that disambiguates between swipe, magnify, and rotation gestures.
 ///
 /// Consumes raw `[MTContact]` frames and emits typed ``SubsurfaceGestureEvent``s via an `AsyncStream`.
@@ -42,6 +63,9 @@ import Scribe
 ///     // ...
 /// }
 /// ```
+///
+/// Pass `recognizedGestureTypes` to restrict disambiguation to the gesture
+/// kinds your app supports.
 @Loggable
 public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// The required number of fingers for this gesture (after palm rejection).
@@ -53,6 +77,9 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// from ``requiredFingerCount``. When disabled, resolved gestures keep tracking as
     /// long as at least two fingers remain active.
     public var requiresExactFingerCountToContinue: Bool
+
+    /// Gesture kinds that this recognizer is allowed to resolve.
+    public var recognizedGestureTypes: SubsurfaceGestureTypes
 
     /// Minimum centroid translation (normalized) to trigger a swipe gesture.
     public var minimumSwipeTranslation: CGFloat = 0.08
@@ -90,9 +117,11 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     public init(
         fingerCount: Int = 2,
+        recognizedGestureTypes: SubsurfaceGestureTypes = .all,
         requiresExactFingerCountToContinue: Bool = false
     ) {
         self.requiredFingerCount = fingerCount
+        self.recognizedGestureTypes = recognizedGestureTypes
         self.requiresExactFingerCountToContinue = requiresExactFingerCountToContinue
     }
 
@@ -210,11 +239,11 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         let angleDelta = angleDifference(from: originAngle, to: angle)
         let translation = hypot(centroid.x - originCentroid.x, centroid.y - originCentroid.y)
 
-        if abs(distanceDelta) > minimumMagnificationDistance {
+        if recognizedGestureTypes.contains(.magnify), abs(distanceDelta) > minimumMagnificationDistance {
             gestureKind = .magnify
-        } else if abs(angleDelta) > minimumRotation {
+        } else if recognizedGestureTypes.contains(.rotation), abs(angleDelta) > minimumRotation {
             gestureKind = .rotation
-        } else if translation > minimumSwipeTranslation {
+        } else if recognizedGestureTypes.contains(.swipe), translation > minimumSwipeTranslation {
             gestureKind = .swipe
         } else {
             lastCentroid = centroid

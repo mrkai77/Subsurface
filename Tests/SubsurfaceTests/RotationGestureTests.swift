@@ -82,4 +82,29 @@ struct RotateGestureTests {
         let result = recognizer.process(contacts: rotated)
         #expect(result?.phase == .determining)
     }
+
+    @Test("Rotation is ignored when excluded from recognized gesture types")
+    func rotationExcluded() {
+        let recognizer = SubsurfaceGestureRecognizer(
+            fingerCount: 2,
+            recognizedGestureTypes: [.swipe, .magnify]
+        )
+
+        let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.7, y: 0.5))
+        _ = recognizer.process(contacts: origin)
+
+        let cos30: Float = 0.866
+        let sin30: Float = 0.5
+        let r: Float = 0.2
+        let cx: Float = 0.5
+        let cy: Float = 0.5
+
+        let rotated = ContactFactory.twoFingers(
+            p1: (x: cx - r * cos30, y: cy - r * sin30),
+            p2: (x: cx + r * cos30, y: cy + r * sin30)
+        )
+        let result = recognizer.process(contacts: rotated)
+
+        #expect(result?.phase == .determining)
+    }
 }
