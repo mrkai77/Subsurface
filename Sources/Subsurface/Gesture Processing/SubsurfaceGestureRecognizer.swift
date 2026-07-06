@@ -9,13 +9,13 @@ import CoreGraphics
 import Foundation
 import Scribe
 
-/// A combined gesture recognizer that disambiguates between pan, pinch, and rotation gestures.
+/// A combined gesture recognizer that disambiguates between swipe, magnify, and rotation gestures.
 ///
 /// Consumes raw `[MTContact]` frames and emits typed ``SubsurfaceGestureEvent``s via an `AsyncStream`.
 /// Supports any finger count (default 2). The first gesture type to exceed its threshold wins
 /// and locks the recognizer for the remainder of the gesture.
 ///
-/// Priority order: pinch -> rotation -> pan.
+/// Priority order: magnify -> rotation -> swipe.
 ///
 /// Usage with a monitor (all devices):
 /// ```swift
@@ -25,8 +25,8 @@ import Scribe
 ///
 /// for await event in recognizer.events(from: monitor) {
 ///     switch event {
-///     case .pan(let pan): ...
-///     case .pinch(let pinch): ...
+///     case .swipe(let swipe): ...
+///     case .magnify(let magnify): ...
 ///     case .rotation(let rotation): ...
 ///     }
 /// }
@@ -54,11 +54,11 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// long as at least two fingers remain active.
     public var requiresExactFingerCountToContinue: Bool
 
-    /// Minimum centroid translation (normalized) to trigger a pan gesture.
-    public var minimumPanTranslation: CGFloat = 0.08
+    /// Minimum centroid translation (normalized) to trigger a swipe gesture.
+    public var minimumSwipeTranslation: CGFloat = 0.08
 
-    /// Minimum inter-finger distance delta (normalized) to trigger a pinch gesture.
-    public var minimumPinchDistance: CGFloat = 0.1
+    /// Minimum inter-finger distance delta (normalized) to trigger a magnify gesture.
+    public var minimumMagnificationDistance: CGFloat = 0.1
 
     /// Minimum inter-finger angle change (radians) to trigger a rotation gesture.
     public var minimumRotation: CGFloat = 0.15
@@ -83,8 +83,8 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     private var continuation: AsyncStream<SubsurfaceGestureEvent>.Continuation?
 
     private enum GestureKind {
-        case pan
-        case pinch
+        case swipe
+        case magnify
         case rotation
     }
 
@@ -205,17 +205,17 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             return .determining(centroid: centroid, fingerCount: count)
         }
 
-        // Disambiguation priority: pinch, rotation, then pan.
+        // Disambiguation priority: magnify, rotation, then swipe.
         let distanceDelta = distance - originDistance
         let angleDelta = angleDifference(from: originAngle, to: angle)
         let translation = hypot(centroid.x - originCentroid.x, centroid.y - originCentroid.y)
 
-        if abs(distanceDelta) > minimumPinchDistance {
-            gestureKind = .pinch
+        if abs(distanceDelta) > minimumMagnificationDistance {
+            gestureKind = .magnify
         } else if abs(angleDelta) > minimumRotation {
             gestureKind = .rotation
-        } else if translation > minimumPanTranslation {
-            gestureKind = .pan
+        } else if translation > minimumSwipeTranslation {
+            gestureKind = .swipe
         } else {
             lastCentroid = centroid
             lastDistance = distance
@@ -316,15 +316,15 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         let timeDelta = now - (lastEventTime ?? now)
 
         switch gestureKind {
-        case .pan:
+        case .swipe:
             let translation = CGPoint(
                 x: centroid.x - originCentroid.x,
                 y: centroid.y - originCentroid.y
             )
             // MT coords are y-up, so atan2(dy, dx) matches the rotation convention
             // (positive = counterclockwise from +x).
-            let panAngle = atan2(translation.y, translation.x)
-            let panDistance = hypot(translation.x, translation.y)
+            let swipeAngle = atan2(translation.y, translation.x)
+            let swipeDistance = hypot(translation.x, translation.y)
 
             let velocity: CGPoint = if timeDelta > 0, let lastCentroid {
                 CGPoint(
@@ -335,24 +335,24 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
                 .zero
             }
 
-            return .pan(SubsurfaceGestureEvent.PanEvent(
+            return .swipe(SubsurfaceGestureEvent.SwipeEvent(
                 phase: phase,
                 translation: translation,
                 velocity: velocity,
                 centroid: centroid,
-                angle: panAngle,
-                distance: panDistance,
+                angle: swipeAngle,
+                distance: swipeDistance,
                 fingerCount: fingerCount
             ))
 
-        case .pinch:
+        case .magnify:
             let velocity: CGFloat = if timeDelta > 0, let lastDistance {
                 (distance - lastDistance) / timeDelta
             } else {
                 0
             }
 
-            return .pinch(SubsurfaceGestureEvent.PinchEvent(
+            return .magnify(SubsurfaceGestureEvent.MagnifyEvent(
                 phase: phase,
                 distance: distance,
                 originDistance: originDistance,

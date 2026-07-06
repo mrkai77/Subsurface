@@ -3,7 +3,7 @@
   <p>Raw multitouch, gestures, and haptics for macOS.<br>
 </div>
 
-Subsurface gives Swift apps direct access to the Mac's multitouch devices. It wraps Apple's private `MultitouchSupport.framework` in a friendlier API for reading raw contact frames, tracking connected trackpads, recognizing pan/pinch/rotation gestures, and triggering Force Touch haptics.
+Subsurface gives Swift apps direct access to the Mac's multitouch devices. It wraps Apple's private `MultitouchSupport.framework` in a friendlier API for reading raw contact frames, tracking connected trackpads, recognizing swipe/magnify/rotation gestures, and triggering Force Touch haptics.
 
 ## Installation
 
@@ -68,11 +68,11 @@ monitor.start()
 
 for await event in recognizer.events(from: monitor) {
     switch event {
-    case let .pan(pan):
-        print("pan: \(pan.translation), velocity: \(pan.velocity)")
+    case let .swipe(swipe):
+        print("swipe: \(swipe.translation), velocity: \(swipe.velocity)")
 
-    case let .pinch(pinch):
-        print("pinch: \(pinch.distance) from \(pinch.originDistance)")
+    case let .magnify(magnify):
+        print("magnify: \(magnify.distance) from \(magnify.originDistance)")
 
     case let .rotation(rotation):
         print("rotation: \(rotation.rotation) radians")
@@ -86,13 +86,13 @@ for await event in recognizer.events(from: monitor) {
 }
 ```
 
-The recognizer starts in a determining phase, then locks onto the first gesture that crosses its threshold. Pinch wins first, then rotation, then pan. By default, once macOS recognizes a gesture, it lets the user lift or add fingers and continue the same gesture as long as at least two fingers remain on the surface. Subsurface matches that sticky behavior; set `requiresExactFingerCountToContinue` to `true` if a resolved gesture should end as soon as the active finger count differs from `fingerCount`.
+The recognizer starts in a determining phase, then locks onto the first gesture that crosses its threshold. Magnify wins first, then rotation, then swipe. By default, once macOS recognizes a gesture, it lets the user lift or add fingers and continue the same gesture as long as at least two fingers remain on the surface. Subsurface matches that sticky behavior; set `requiresExactFingerCountToContinue` to `true` if a resolved gesture should end as soon as the active finger count differs from `fingerCount`.
 
 You can tune the thresholds directly:
 
 ```swift
-recognizer.minimumPanTranslation = 0.08
-recognizer.minimumPinchDistance = 0.1
+recognizer.minimumSwipeTranslation = 0.08
+recognizer.minimumMagnificationDistance = 0.1
 recognizer.minimumRotation = 0.15
 recognizer.inactivityTimeout = .milliseconds(250)
 ```

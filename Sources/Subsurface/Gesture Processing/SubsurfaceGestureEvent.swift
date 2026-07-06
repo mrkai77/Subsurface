@@ -13,10 +13,10 @@ public enum SubsurfaceGestureEvent: Sendable {
     case determining(centroid: CGPoint, fingerCount: Int)
     /// Touches ended before the recognizer resolved a concrete gesture kind.
     case unresolvedEnded(UnresolvedEndReason)
-    /// A pan (directional swipe) gesture was detected.
-    case pan(PanEvent)
-    /// A pinch (spread/squeeze) gesture was detected.
-    case pinch(PinchEvent)
+    /// A directional swipe gesture was detected.
+    case swipe(SwipeEvent)
+    /// A magnify gesture was detected.
+    case magnify(MagnifyEvent)
     /// A rotation gesture was detected.
     case rotation(RotationEvent)
 
@@ -25,8 +25,8 @@ public enum SubsurfaceGestureEvent: Sendable {
         switch self {
         case .determining: .determining
         case let .unresolvedEnded(reason): reason.phase
-        case let .pan(event): event.phase
-        case let .pinch(event): event.phase
+        case let .swipe(event): event.phase
+        case let .magnify(event): event.phase
         case let .rotation(event): event.phase
         }
     }
@@ -49,8 +49,8 @@ public enum SubsurfaceGestureEvent: Sendable {
         }
     }
 
-    /// A pan (directional swipe) gesture event.
-    public struct PanEvent: Sendable {
+    /// A directional swipe gesture event.
+    public struct SwipeEvent: Sendable {
         /// The current phase of this gesture.
         public let phase: SubsurfaceGesturePhase
 
@@ -75,8 +75,8 @@ public enum SubsurfaceGestureEvent: Sendable {
         public let fingerCount: Int
     }
 
-    /// A pinch (spread/squeeze) gesture event.
-    public struct PinchEvent: Sendable {
+    /// A magnify gesture event.
+    public struct MagnifyEvent: Sendable {
         /// The current phase of this gesture.
         public let phase: SubsurfaceGesturePhase
 

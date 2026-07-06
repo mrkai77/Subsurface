@@ -18,7 +18,7 @@ struct InactivityTests {
             let origin = ContactFactory.twoFingers(p1: (x: 0.3, y: 0.5), p2: (x: 0.4, y: 0.5))
             continuation.yield(origin)
 
-            // Move past minimumPanTranslation (0.08) to trigger .began
+            // Move past minimumSwipeTranslation (0.08) to trigger .began
             let moved = ContactFactory.twoFingers(p1: (x: 0.4, y: 0.5), p2: (x: 0.5, y: 0.5))
             continuation.yield(moved)
         }
