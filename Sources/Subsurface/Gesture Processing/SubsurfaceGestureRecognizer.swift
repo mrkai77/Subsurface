@@ -179,7 +179,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
                 // Stream ended, so finalize if mid-gesture
                 if let self, phase == .began || phase == .changed || phase == .determining {
-                    if let event = makeEndEvent(reason: .cancelled) {
+                    if let event = makeEndEvent(reason: .cancelled, activeFingerCount: previousActiveFingerCount) {
                         continuation.yield(event)
                     }
                     resetState()
@@ -220,7 +220,12 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
         if gestureKind != nil {
             guard shouldContinueResolvedGesture(activeFingerCount: count) else {
-                let event = makeEndEvent(reason: .lifted)
+                let reason: SubsurfaceGestureEvent.GestureEndReason = if count < 2 {
+                    .lifted
+                } else {
+                    .fingerCountChanged(count > requiredFingerCount ? .increased : .decreased)
+                }
+                let event = makeEndEvent(reason: reason, activeFingerCount: count)
                 resetState()
                 return event
             }
@@ -333,7 +338,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// Reset the recognizer to its initial state.
     public func reset() {
         if phase == .began || phase == .changed || phase == .determining {
-            if let event = makeEndEvent(reason: .cancelled) {
+                if let event = makeEndEvent(reason: .cancelled, activeFingerCount: previousActiveFingerCount) {
                 continuation?.yield(event)
             }
         }
@@ -349,7 +354,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             if Task.isCancelled { return }
 
             if phase == .began || phase == .changed || phase == .determining {
-                if let event = makeEndEvent(reason: .timedOut) {
+                if let event = makeEndEvent(reason: .timedOut, activeFingerCount: previousActiveFingerCount) {
                     continuation?.yield(event)
                 }
             }
@@ -440,20 +445,28 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         }
     }
 
-    private func makeEndEvent(reason: SubsurfaceGestureEvent.UnresolvedEndReason) -> SubsurfaceGestureEvent? {
-        guard gestureKind != nil else {
-            return .unresolvedEnded(reason)
-        }
+    private func makeEndEvent(
+        reason: SubsurfaceGestureEvent.GestureEndReason,
+        activeFingerCount: Int
+    ) -> SubsurfaceGestureEvent? {
+        guard gestureKind != nil else { return nil }
 
         guard let lastCentroid, let lastDistance, let lastAngle else { return nil }
         return makeEvent(
-            phase: .ended,
+            phase: .ended(reason),
             centroid: lastCentroid,
             distance: lastDistance,
             angle: lastAngle,
             now: Date.timeIntervalSinceReferenceDate,
-            fingerCount: requiredFingerCount
+            fingerCount: activeFingerCount
         )
+    }
+
+    private func makeEndEvent(
+        reason: SubsurfaceGestureEvent.GestureEndReason
+    ) -> SubsurfaceGestureEvent? {
+        guard gestureKind == nil else { return nil }
+        return .unresolvedEnded(reason)
     }
 
     private func resetState() {

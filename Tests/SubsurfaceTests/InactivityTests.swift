@@ -29,14 +29,14 @@ struct InactivityTests {
         let deadline = ContinuousClock.now + .seconds(2)
         for await event in eventStream {
             events.append(event)
-            if event.phase == .ended { break }
+            if case .ended = event.phase { break }
             if ContinuousClock.now > deadline { break }
         }
 
         #expect(events.count >= 2)
 
         if let last = events.last {
-            #expect(last.phase == .ended)
+            if case .ended = last.phase {} else { Issue.record("Expected ended phase") }
         }
     }
 
@@ -56,12 +56,12 @@ struct InactivityTests {
         let deadline = ContinuousClock.now + .seconds(2)
         for await event in eventStream {
             events.append(event)
-            if event.phase == .ended { break }
+            if case .ended = event.phase { break }
             if ContinuousClock.now > deadline { break }
         }
 
         if case .unresolvedEnded(.timedOut) = events.last {
-            #expect(events.last?.phase == .ended)
+            if case .ended = events.last?.phase {} else { Issue.record("Expected ended phase") }
         } else {
             Issue.record("Expected unresolved timedOut event")
         }

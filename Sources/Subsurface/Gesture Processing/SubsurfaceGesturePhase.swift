@@ -25,7 +25,7 @@ public enum SubsurfaceGesturePhase: Sendable, Equatable {
     case changed
 
     /// Fingers lifted cleanly, gesture complete.
-    case ended
+    case ended(SubsurfaceGestureEvent.GestureEndReason)
 
     /// Interrupted (e.g., finger count changed mid-gesture).
     case cancelled

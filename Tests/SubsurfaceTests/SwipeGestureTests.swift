@@ -81,7 +81,7 @@ struct SwipeGestureTests {
 
         let result = recognizer.process(contacts: [])
         if case .unresolvedEnded(.lifted) = result {
-            #expect(result?.phase == .ended)
+            if case .ended = result?.phase {} else { Issue.record("Expected ended phase") }
         } else {
             Issue.record("Expected unresolved lifted event")
         }
@@ -101,7 +101,7 @@ struct SwipeGestureTests {
         let result = recognizer.process(contacts: breakingContacts)
 
         if case .unresolvedEnded(.lifted) = result {
-            #expect(result?.phase == .ended)
+            if case .ended = result?.phase {} else { Issue.record("Expected ended phase") }
         } else {
             Issue.record("Expected unresolved lifted event")
         }
@@ -180,7 +180,7 @@ struct SwipeGestureTests {
         let result = recognizer.process(contacts: single)
 
         if case let .swipe(swipe) = result {
-            #expect(swipe.phase == .ended)
+            if case .ended(.lifted) = swipe.phase {} else { Issue.record("Expected lifted end") }
         } else {
             Issue.record("Expected .ended swipe event, got \(String(describing: result))")
         }
@@ -239,7 +239,7 @@ struct SwipeGestureTests {
         let result = recognizer.process(contacts: lifted)
 
         if case let .swipe(swipe) = result {
-            #expect(swipe.phase == .ended)
+            if case .ended(.fingerCountChanged(.decreased)) = swipe.phase {} else { Issue.record("Expected decreased end") }
         } else {
             Issue.record("Expected .ended swipe event after finger-count change, got \(String(describing: result))")
         }

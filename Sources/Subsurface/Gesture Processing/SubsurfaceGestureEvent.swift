@@ -12,7 +12,7 @@ public enum SubsurfaceGestureEvent: Sendable {
     /// Correct finger count detected, but gesture type not yet determined.
     case determining(centroid: CGPoint, fingerCount: Int)
     /// Touches ended before the recognizer resolved a concrete gesture kind.
-    case unresolvedEnded(UnresolvedEndReason)
+    case unresolvedEnded(GestureEndReason)
     /// A directional swipe gesture was detected.
     case swipe(SwipeEvent)
     /// A magnify gesture was detected.
@@ -20,32 +20,33 @@ public enum SubsurfaceGestureEvent: Sendable {
     /// A rotation gesture was detected.
     case rotation(RotationEvent)
 
+    /// Why a gesture ended.
+    public enum GestureEndReason: Sendable, Equatable {
+        case lifted
+        case fingerCountChanged(FingerCountChange)
+        case timedOut
+        case cancelled
+    }
+
+    public enum FingerCountChange: Sendable, Equatable {
+        case increased
+        case decreased
+    }
+
     /// The gesture phase of this event.
     public var phase: SubsurfaceGesturePhase {
         switch self {
         case .determining: .determining
-        case let .unresolvedEnded(reason): reason.phase
-        case let .swipe(event): event.phase
-        case let .magnify(event): event.phase
-        case let .rotation(event): event.phase
-        }
-    }
-
-    public enum UnresolvedEndReason: Sendable, Equatable {
-        /// The active finger count dropped before a gesture kind was resolved.
-        case lifted
-        /// Contact frames stopped before a gesture kind was resolved.
-        case timedOut
-        /// The gesture became invalid before a gesture kind was resolved.
-        case cancelled
-
-        fileprivate var phase: SubsurfaceGesturePhase {
-            switch self {
-            case .lifted, .timedOut:
-                .ended
+        case let .unresolvedEnded(reason):
+            switch reason {
+            case .lifted, .timedOut, .fingerCountChanged:
+                .ended(reason)
             case .cancelled:
                 .cancelled
             }
+        case let .swipe(event): event.phase
+        case let .magnify(event): event.phase
+        case let .rotation(event): event.phase
         }
     }
 
