@@ -78,6 +78,13 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// long as at least two fingers remain active.
     public var requiresExactFingerCountToContinue: Bool
 
+    /// Whether a gesture may activate after the active finger count decreases.
+    ///
+    /// When enabled, a recognizer configured for two fingers cannot activate from
+    /// a three-finger touch after one finger is lifted. The next gesture must begin
+    /// with the required finger count already present. Defaults to `true`.
+    public var disallowActivationFromFingerCountDecrease: Bool
+
     /// Gesture kinds that this recognizer is allowed to resolve.
     public var recognizedGestureTypes: SubsurfaceGestureTypes
 
@@ -104,6 +111,8 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     private var lastDistance: CGFloat?
     private var lastAngle: CGFloat?
     private var lastEventTime: TimeInterval?
+    private var previousActiveFingerCount = 0
+    private var fingerCountDecreasedInCurrentTouchSequence = false
 
     private var inactivityTask: Task<(), Never>?
 
@@ -118,11 +127,13 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     public init(
         fingerCount: Int = 2,
         recognizedGestureTypes: SubsurfaceGestureTypes = .all,
-        requiresExactFingerCountToContinue: Bool = false
+        requiresExactFingerCountToContinue: Bool = false,
+        disallowActivationFromFingerCountDecrease: Bool = true
     ) {
         self.requiredFingerCount = fingerCount
         self.recognizedGestureTypes = recognizedGestureTypes
         self.requiresExactFingerCountToContinue = requiresExactFingerCountToContinue
+        self.disallowActivationFromFingerCountDecrease = disallowActivationFromFingerCountDecrease
     }
 
     /// Creates an `AsyncStream` of gesture events from a ``SubsurfaceMonitor``.
@@ -197,6 +208,16 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
         )
         let count = filtered.count
 
+        if count == 0 {
+            previousActiveFingerCount = 0
+            fingerCountDecreasedInCurrentTouchSequence = false
+        } else {
+            if count < previousActiveFingerCount {
+                fingerCountDecreasedInCurrentTouchSequence = true
+            }
+            previousActiveFingerCount = count
+        }
+
         if gestureKind != nil {
             guard shouldContinueResolvedGesture(activeFingerCount: count) else {
                 let event = makeEndEvent(reason: .lifted)
@@ -214,6 +235,11 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
                 resetState()
                 return event
             }
+            return nil
+        }
+
+        if disallowActivationFromFingerCountDecrease,
+           fingerCountDecreasedInCurrentTouchSequence {
             return nil
         }
 

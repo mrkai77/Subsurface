@@ -186,6 +186,30 @@ struct SwipeGestureTests {
         }
     }
 
+    @Test("Two-finger recognizer does not activate after a finger-count decrease")
+    func doesNotActivateFromFingerCountDecrease() {
+        let recognizer = SubsurfaceGestureRecognizer(fingerCount: 2)
+
+        let threeFinger = [
+            ContactFactory.contact(x: 0.3, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.4, y: 0.5, finger: .middle, hand: .right, id: 2),
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .ring, hand: .right, id: 3)
+        ]
+        _ = recognizer.process(contacts: threeFinger)
+
+        let twoFinger = [
+            ContactFactory.contact(x: 0.4, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .middle, hand: .right, id: 2)
+        ]
+        #expect(recognizer.process(contacts: twoFinger) == nil)
+
+        let moved = [
+            ContactFactory.contact(x: 0.5, y: 0.5, finger: .index, hand: .right, id: 1),
+            ContactFactory.contact(x: 0.6, y: 0.5, finger: .middle, hand: .right, id: 2)
+        ]
+        #expect(recognizer.process(contacts: moved) == nil)
+    }
+
     @Test("Swipe ends on finger count change when exact-count tracking is required")
     func panEndsOnFingerCountChangeWhenExactCountRequired() {
         let recognizer = SubsurfaceGestureRecognizer(
