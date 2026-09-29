@@ -5,7 +5,7 @@
 //  Created by Kai Azim on 2026-01-31.
 //
 
-import AppKit
+import Foundation
 import os
 import Scribe
 
@@ -17,6 +17,10 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     struct ContactState {
         var stream: AsyncStream<[MTContact]>?
         var continuation: AsyncStream<[MTContact]>.Continuation?
+        /// Synchronous frame consumer used by ``SubsurfaceMonitor``. Called while the
+        /// lock is held so that frames and the final zero-contact frame stay ordered.
+        var handler: (@Sendable ([MTContact]) -> ())?
+        var isCallbackRegistered = false
     }
     /// Lock guarding the contact stream pair. The C frame callback fires on a
     /// framework thread, while register/unregister can run on any caller thread.
@@ -29,12 +33,54 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     /// Lock for the path-callback stream pair, mirroring `contactState`.
     let pathState = OSAllocatedUnfairLock<PathEventState>(initialState: .init())
 
-    /// Controls whether the device should automatically restart after the system wakes from sleep
+    /// No longer used. ``SubsurfaceMonitor`` rebuilds all of its devices after wake and
+    /// session changes, which also re-registers callbacks (a plain stop/start does not).
+    @available(*, deprecated, message: "Wake handling is done by SubsurfaceMonitor, which fully rebuilds its devices")
     public var autoRestartOnWake: Bool = true
-    private var wakeObserver: NSObjectProtocol?
+
+    /// The kind of hardware this device is, resolved once from its family ID
+    public let kind: Kind
+
+    /// Broad hardware category of a multitouch device
+    public enum Kind: Sendable, Equatable, CustomStringConvertible {
+        /// A built-in or Magic Trackpad
+        case trackpad
+        /// A Magic Mouse (family 112/113). Its surface reports resting fingers,
+        /// so it should not take part in trackpad gesture recognition.
+        case magicMouse
+        /// Anything else, including the Touch Bar and unknown family IDs
+        /// (which may be newer trackpads). Filter on `.magicMouse` to exclude mice.
+        case other
+
+        init(familyID: Int?) {
+            switch familyID {
+            case 98, 99, 100, 101, 102, 103, 104, 108, 109, 128, 129, 130:
+                self = .trackpad
+            case 112, 113:
+                self = .magicMouse
+            default:
+                self = .other
+            }
+        }
+
+        public var description: String {
+            switch self {
+            case .trackpad: "trackpad"
+            case .magicMouse: "Magic Mouse"
+            case .other: "other"
+            }
+        }
+    }
 
     private init(deviceRef: MTDeviceRef) {
         self.deviceRef = deviceRef
+
+        var familyID: Int32 = 0
+        if let MTDeviceGetFamilyID, MTDeviceGetFamilyID(deviceRef, &familyID) == noErr {
+            self.kind = Kind(familyID: Int(familyID))
+        } else {
+            self.kind = Kind(familyID: nil)
+        }
     }
 
     // MARK: - Static Properties
@@ -145,76 +191,34 @@ public final class SubsurfaceDevice: @unchecked Sendable {
 
     // MARK: - Device Control
 
-    /// Starts the device and begins collecting touch data
+    /// Starts the device and begins collecting touch data.
+    ///
+    /// Register callbacks (e.g. ``contactFrames()``) before calling this, so no frames are missed.
     /// - Returns: `true` if the device started successfully, `false` otherwise
     @discardableResult
     public func start() -> Bool {
-        guard rawStart() else { return false }
-        addSleepWakeObservers()
-        return true
-    }
+        guard let MTDeviceStart else {
+            log.warn("Failed to load MTDeviceStart")
+            return false
+        }
 
-    /// Stops the device and stops collecting touch data
-    /// - Returns: `true` if the device stopped successfully, `false` otherwise
-    @discardableResult
-    public func stop() -> Bool {
-        removeSleepWakeObservers()
-        removeContactFrameCallback()
-        removePathCallback()
-        return rawStop()
-    }
-
-    /// Start the underlying MT device without touching observers/callbacks.
-    private func rawStart() -> Bool {
-        let error = MTDeviceStart?(deviceRef, MTRunMode.verbose.rawValue)
+        let error = MTDeviceStart(deviceRef, MTRunMode.verbose.rawValue)
         if error != noErr {
-            log.error("Error starting device: \(error ?? -1)")
+            log.error("Error starting device: \(error)")
             return false
         }
         return true
     }
 
-    /// Stop the underlying MT device without touching observers/callbacks.
+    /// Stops the device and stops collecting touch data.
+    ///
+    /// Contact consumers receive a final zero-contact frame before their stream finishes.
+    /// - Returns: `true` if the device stopped successfully, `false` otherwise
     @discardableResult
-    private func rawStop() -> Bool {
-        MTDeviceStop?(deviceRef) == noErr
-    }
-
-    private func restart() async {
-        guard autoRestartOnWake, wakeObserver != nil else { return }
-
-        log.info("Restarting device after wake")
-        _ = rawStop()
-        try? await Task.sleep(for: .seconds(1))
-
-        if rawStart() {
-            log.info("Device restarted successfully")
-        } else {
-            log.error("Failed to restart device")
-        }
-    }
-
-    private func addSleepWakeObservers() {
-        guard wakeObserver == nil else { return }
-
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-
-            Task {
-                await restart()
-            }
-        }
-    }
-
-    private func removeSleepWakeObservers() {
-        if let observer = wakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(observer)
-            wakeObserver = nil
-        }
+    public func stop() -> Bool {
+        removeContactFrameCallback()
+        removePathCallback()
+        return MTDeviceStop?(deviceRef) == noErr
     }
 
     // MARK: - Device Status
@@ -559,7 +563,9 @@ public final class SubsurfaceDevice: @unchecked Sendable {
 
     // MARK: - Callbacks
 
-    /// Create an async stream of contact frame events
+    /// Create an async stream of contact frame events.
+    ///
+    /// When the device is stopped, the stream receives a final zero-contact frame and then finishes.
     public func contactFrames() -> AsyncStream<[MTContact]> {
         if let existing = contactState.withLock({ $0.stream }) {
             return existing
@@ -577,22 +583,39 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         }
 
         contactState.withLock { $0.stream = stream }
-
-        guard let MTRegisterContactFrameCallbackWithRefcon else {
-            log.warn("Failed to load MTRegisterContactFrameCallbackWithRefcon")
-            return stream
-        }
-
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
-        let success = MTRegisterContactFrameCallbackWithRefcon(deviceRef, contactFrameCallback, refcon)
-
-        if success {
-            log.debug("Registered contact frame callback")
-        } else {
-            log.error("Failed to register contact frame callback")
-        }
+        registerContactFrameCallbackIfNeeded()
 
         return stream
+    }
+
+    /// Delivers every contact frame synchronously to `handler`, in order, followed by a
+    /// zero-contact frame when the device is stopped. Used by ``SubsurfaceMonitor``.
+    @discardableResult
+    func setContactHandler(_ handler: @escaping @Sendable ([MTContact]) -> ()) -> Bool {
+        contactState.withLock { $0.handler = handler }
+        return registerContactFrameCallbackIfNeeded()
+    }
+
+    @discardableResult
+    private func registerContactFrameCallbackIfNeeded() -> Bool {
+        guard let MTRegisterContactFrameCallbackWithRefcon else {
+            log.warn("Failed to load MTRegisterContactFrameCallbackWithRefcon")
+            return false
+        }
+
+        return contactState.withLock { state in
+            guard !state.isCallbackRegistered else { return true }
+
+            let refcon = Unmanaged.passUnretained(self).toOpaque()
+            state.isCallbackRegistered = MTRegisterContactFrameCallbackWithRefcon(deviceRef, contactFrameCallback, refcon)
+
+            if state.isCallbackRegistered {
+                log.debug("Registered contact frame callback")
+            } else {
+                log.error("Failed to register contact frame callback")
+            }
+            return state.isCallbackRegistered
+        }
     }
 
     /// Create an async stream of per-path events. Path callbacks fire per
@@ -652,17 +675,29 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         log.debug("Unregistered path callback")
     }
 
-    /// Remove contact frame callback
+    /// Remove contact frame callback.
+    ///
+    /// Consumers receive a final zero-contact frame, so any per-device finger state resets.
     public func removeContactFrameCallback() {
-        let continuation = contactState.withLock { state -> AsyncStream<[MTContact]>.Continuation? in
-            guard state.stream != nil else { return nil }
-            let c = state.continuation
+        let removed = contactState.withLock { state -> (
+            continuation: AsyncStream<[MTContact]>.Continuation?,
+            handler: (@Sendable ([MTContact]) -> ())?
+        )? in
+            guard state.isCallbackRegistered || state.stream != nil || state.handler != nil else { return nil }
+            let removed = (state.continuation, state.handler)
             state.continuation = nil
             state.stream = nil
-            return c
+            state.handler = nil
+            state.isCallbackRegistered = false
+            return removed
         }
-        guard continuation != nil else { return }
-        continuation?.finish()
+        guard let removed else { return }
+
+        // The frame callback no longer delivers anything once the state above is cleared,
+        // so this zero-contact frame is guaranteed to be the last one consumers see.
+        removed.handler?([])
+        removed.continuation?.yield([])
+        removed.continuation?.finish()
 
         guard let MTUnregisterContactFrameCallback else {
             log.warn("Failed to load MTUnregisterContactFrameCallback")
@@ -711,6 +746,7 @@ let contactFrameCallback: MTFrameCallbackFunctionWithRefcon = { _, dataPtr, numT
     let touchesCopy = Array(touches)
 
     device.contactState.withLock { state in
+        state.handler?(touchesCopy)
         _ = state.continuation?.yield(touchesCopy)
     }
 }

@@ -66,6 +66,10 @@ public struct SubsurfaceGestureTypes: OptionSet, Sendable {
 ///
 /// Pass `recognizedGestureTypes` to restrict disambiguation to the gesture
 /// kinds your app supports.
+///
+/// When fed from a monitor, each touch sequence is bound to the first device that
+/// reports contacts, and frames from other devices are ignored until that device
+/// reports zero contacts. Magic Mouse devices are ignored entirely.
 @Loggable
 public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// The required number of fingers for this gesture (after palm rejection).
@@ -114,7 +118,14 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     private var previousActiveFingerCount = 0
     private var fingerCountDecreasedInCurrentTouchSequence = false
 
-    private var inactivityTask: Task<(), Never>?
+    /// The device the current touch sequence is bound to, when fed from a monitor
+    private var boundSource: ObjectIdentifier?
+
+    /// When the current gesture times out. Checked by one long-lived timer task per event stream.
+    private var inactivityDeadline: ContinuousClock.Instant?
+
+    /// Serializes frame handling with the inactivity timer, which run on separate tasks
+    private let processingLock = NSLock()
 
     private var continuation: AsyncStream<SubsurfaceGestureEvent>.Continuation?
 
@@ -138,18 +149,14 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     /// Creates an `AsyncStream` of gesture events from a ``SubsurfaceMonitor``.
     ///
-    /// Convenience that extracts the contact frames from the monitor's device+contact stream.
+    /// Each touch sequence is bound to the first device that reports contacts; frames
+    /// from other devices are ignored until that device reports zero contacts (which the
+    /// monitor also emits when a device is removed or rebuilt). Magic Mouse frames are ignored.
     public func events(from monitor: SubsurfaceMonitor) -> AsyncStream<SubsurfaceGestureEvent> {
-        let contactStream = AsyncStream<[MTContact]> { continuation in
-            let bridgeTask = Task {
-                for await (_, contacts) in monitor.contacts() {
-                    continuation.yield(contacts)
-                }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in bridgeTask.cancel() }
+        events(from: monitor.contacts()) { device, contacts in
+            guard device.kind != .magicMouse else { return nil }
+            return (ObjectIdentifier(device), contacts)
         }
-        return events(from: contactStream)
     }
 
     /// Creates an `AsyncStream` of gesture events from a ``SubsurfaceDevice``.
@@ -164,25 +171,71 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// The recognizer handles palm filtering, finger count validation, gesture disambiguation,
     /// and inactivity timeouts internally.
     public func events(from contactStream: AsyncStream<[MTContact]>) -> AsyncStream<SubsurfaceGestureEvent> {
+        events(from: contactStream) { contacts in (nil, contacts) }
+    }
+
+    /// Shared event pipeline. `frame` maps each element to its source device (`nil` for a
+    /// single-source stream, which skips device binding) and contacts, or `nil` to drop it.
+    private func events<Element: Sendable>(
+        from frames: AsyncStream<Element>,
+        frame: @escaping @Sendable (Element) -> (source: ObjectIdentifier?, contacts: [MTContact])?
+    ) -> AsyncStream<SubsurfaceGestureEvent> {
         AsyncStream { continuation in
             self.continuation = continuation
 
-            let task = Task { [weak self] in
-                for await contacts in contactStream {
-                    guard let self, !Task.isCancelled else { break }
-                    resetInactivityTimer()
+            // Wakes the timer when a deadline is armed while it is idle
+            let (timerWakeups, timerWakeupContinuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
 
-                    if let event = process(contacts: contacts) {
+            let timerTask = Task { [weak self] in
+                var wakeups = timerWakeups.makeAsyncIterator()
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    guard let deadline = processingLock.withLock({ inactivityDeadline }) else {
+                        guard await wakeups.next() != nil else { return }
+                        continue
+                    }
+
+                    try? await Task.sleep(until: deadline, clock: .continuous)
+
+                    if let event = expireIfNeeded() {
+                        continuation.yield(event)
+                    }
+                }
+            }
+
+            let task = Task { [weak self] in
+                for await element in frames {
+                    guard let self, !Task.isCancelled else { break }
+                    guard let (source, contacts) = frame(element),
+                          let result = handle(contacts: contacts, from: source) else {
+                        continue
+                    }
+
+                    if result.armedDeadline {
+                        timerWakeupContinuation.yield()
+                    }
+                    if let event = result.event {
                         continuation.yield(event)
                     }
                 }
 
+                timerTask.cancel()
+                timerWakeupContinuation.finish()
+
                 // Stream ended, so finalize if mid-gesture
-                if let self, phase == .began || phase == .changed || phase == .determining {
-                    if let event = makeEndEvent(reason: .cancelled, activeFingerCount: previousActiveFingerCount) {
+                if let self {
+                    let event: SubsurfaceGestureEvent? = processingLock.withLock {
+                        defer {
+                            resetState()
+                            boundSource = nil
+                            inactivityDeadline = nil
+                        }
+                        guard phase == .began || phase == .changed || phase == .determining else { return nil }
+                        return makeEndEvent(reason: .cancelled, activeFingerCount: previousActiveFingerCount)
+                    }
+                    if let event {
                         continuation.yield(event)
                     }
-                    resetState()
                 }
 
                 continuation.finish()
@@ -190,9 +243,65 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
             continuation.onTermination = { [weak self] _ in
                 task.cancel()
-                self?.inactivityTask?.cancel()
-                self?.resetState()
+                timerTask.cancel()
+                timerWakeupContinuation.finish()
+                guard let self else { return }
+                processingLock.withLock {
+                    resetState()
+                    boundSource = nil
+                    inactivityDeadline = nil
+                }
             }
+        }
+    }
+
+    /// Applies device binding and processes a frame, refreshing the inactivity deadline.
+    /// Returns `nil` when the frame is ignored.
+    private func handle(
+        contacts: [MTContact],
+        from source: ObjectIdentifier?
+    ) -> (event: SubsurfaceGestureEvent?, armedDeadline: Bool)? {
+        processingLock.withLock {
+            if let source {
+                let activeCount = SubsurfaceContactFilter.activeTouches(
+                    from: SubsurfaceContactFilter.removePalms(from: contacts)
+                ).count
+
+                if let boundSource {
+                    guard boundSource == source else { return nil }
+                } else {
+                    // Nothing to track until a device reports contacts
+                    guard activeCount > 0 else { return nil }
+                    boundSource = source
+                }
+
+                if activeCount == 0 {
+                    boundSource = nil
+                }
+            }
+
+            let armedDeadline = inactivityDeadline == nil
+            inactivityDeadline = .now + inactivityTimeout
+
+            return (process(contacts: contacts), armedDeadline)
+        }
+    }
+
+    /// Ends the current gesture if its inactivity deadline has passed.
+    private func expireIfNeeded() -> SubsurfaceGestureEvent? {
+        processingLock.withLock {
+            guard let deadline = inactivityDeadline, deadline <= .now else { return nil }
+
+            inactivityDeadline = nil
+            boundSource = nil
+
+            var event: SubsurfaceGestureEvent?
+            if phase == .began || phase == .changed || phase == .determining {
+                event = makeEndEvent(reason: .timedOut, activeFingerCount: previousActiveFingerCount)
+            }
+
+            resetState()
+            return event
         }
     }
 
@@ -337,29 +446,15 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
 
     /// Reset the recognizer to its initial state.
     public func reset() {
-        if phase == .began || phase == .changed || phase == .determining {
-                if let event = makeEndEvent(reason: .cancelled, activeFingerCount: previousActiveFingerCount) {
-                continuation?.yield(event)
-            }
-        }
-        resetState()
-    }
-
-    private func resetInactivityTimer() {
-        inactivityTask?.cancel()
-
-        inactivityTask = Task { [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(for: inactivityTimeout)
-            if Task.isCancelled { return }
-
+        processingLock.withLock {
             if phase == .began || phase == .changed || phase == .determining {
-                if let event = makeEndEvent(reason: .timedOut, activeFingerCount: previousActiveFingerCount) {
+                if let event = makeEndEvent(reason: .cancelled, activeFingerCount: previousActiveFingerCount) {
                     continuation?.yield(event)
                 }
             }
-
             resetState()
+            boundSource = nil
+            inactivityDeadline = nil
         }
     }
 
