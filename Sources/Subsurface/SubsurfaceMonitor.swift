@@ -350,6 +350,9 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
         tracked.device = nil
         stateLock.withLock { _ = runningDevices.removeValue(forKey: tracked.registryID) }
         device.stop()
+
+        // MultitouchSupport may still be delivering a frame on its own thread, so keep the device alive briefly
+        notificationQueue.asyncAfter(deadline: .now() + 1) { withExtendedLifetime(device) {} }
     }
 
     private func scheduleRetry(_ tracked: TrackedService) {
