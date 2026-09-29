@@ -378,6 +378,8 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
     /// Restarts the retry schedule for tracked services that have no running device and no pending retry
     private func retryExhaustedDevices() {
         for tracked in trackedServices.values where tracked.device == nil && tracked.retryWorkItem == nil {
+            // An earlier start in this loop may have replaced this entry and released its service
+            guard trackedServices[tracked.registryID] === tracked else { continue }
             log.info("Retrying idle service \(tracked.registryID)")
             tracked.failedAttempts = 0
             attemptStart(tracked)

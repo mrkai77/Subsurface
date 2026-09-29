@@ -81,6 +81,13 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         } else {
             self.kind = Kind(familyID: nil)
         }
+
+        var deviceID: UInt64 = 0
+        if let MTDeviceGetDeviceID, MTDeviceGetDeviceID(deviceRef, &deviceID) == noErr {
+            self.deviceID = deviceID
+        } else {
+            self.deviceID = nil
+        }
     }
 
     // MARK: - Static Properties
@@ -381,19 +388,8 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         return Int(familyID)
     }
 
-    /// The unique device identifier
-    public var deviceID: UInt64? {
-        guard let MTDeviceGetDeviceID else {
-            log.warn("Failed to load MTDeviceGetDeviceID")
-            return nil
-        }
-
-        var deviceID: UInt64 = 0
-        guard MTDeviceGetDeviceID(deviceRef, &deviceID) == noErr else {
-            return nil
-        }
-        return deviceID
-    }
+    /// The unique device identifier, resolved once so it stays readable after the device is removed
+    public let deviceID: UInt64?
 
     /// The device's firmware version
     public var version: Int? {
