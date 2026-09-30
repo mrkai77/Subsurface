@@ -45,11 +45,9 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     public enum Kind: Sendable, Equatable, CustomStringConvertible {
         /// A built-in or Magic Trackpad
         case trackpad
-        /// A Magic Mouse (family 112/113). Its surface reports resting fingers,
-        /// so it should not take part in trackpad gesture recognition.
+        /// A Magic Mouse (family 112/113)
         case magicMouse
-        /// Anything else, including the Touch Bar and unknown family IDs
-        /// (which may be newer trackpads). Filter on `.magicMouse` to exclude mice.
+        /// Anything else, including the Touch Bar and unknown family IDs (which may be newer trackpads)
         case other
 
         init(familyID: Int?) {

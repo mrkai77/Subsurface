@@ -69,7 +69,7 @@ public struct SubsurfaceGestureTypes: OptionSet, Sendable {
 ///
 /// When fed from a monitor, each touch sequence is bound to the first device that
 /// reports contacts, and frames from other devices are ignored until that device
-/// reports zero contacts. Magic Mouse devices are ignored entirely.
+/// reports zero contacts.
 @Loggable
 public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     /// The required number of fingers for this gesture (after palm rejection).
@@ -151,11 +151,10 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     ///
     /// Each touch sequence is bound to the first device that reports contacts; frames
     /// from other devices are ignored until that device reports zero contacts (which the
-    /// monitor also emits when a device is removed or rebuilt). Magic Mouse frames are ignored.
+    /// monitor also emits when a device is removed or rebuilt).
     public func events(from monitor: SubsurfaceMonitor) -> AsyncStream<SubsurfaceGestureEvent> {
         events(from: monitor.contacts()) { device, contacts in
-            guard device.kind != .magicMouse else { return nil }
-            return (ObjectIdentifier(device), contacts)
+            (ObjectIdentifier(device), contacts)
         }
     }
 
@@ -175,10 +174,10 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
     }
 
     /// Shared event pipeline. `frame` maps each element to its source device (`nil` for a
-    /// single-source stream, which skips device binding) and contacts, or `nil` to drop it.
+    /// single-source stream, which skips device binding) and contacts.
     private func events<Element: Sendable>(
         from frames: AsyncStream<Element>,
-        frame: @escaping @Sendable (Element) -> (source: ObjectIdentifier?, contacts: [MTContact])?
+        frame: @escaping @Sendable (Element) -> (source: ObjectIdentifier?, contacts: [MTContact])
     ) -> AsyncStream<SubsurfaceGestureEvent> {
         AsyncStream { continuation in
             self.continuation = continuation
@@ -206,10 +205,8 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             let task = Task { [weak self] in
                 for await element in frames {
                     guard let self, !Task.isCancelled else { break }
-                    guard let (source, contacts) = frame(element),
-                          let result = handle(contacts: contacts, from: source) else {
-                        continue
-                    }
+                    let (source, contacts) = frame(element)
+                    guard let result = handle(contacts: contacts, from: source) else { continue }
 
                     if result.armedDeadline {
                         timerWakeupContinuation.yield()

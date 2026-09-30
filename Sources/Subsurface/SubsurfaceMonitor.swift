@@ -338,11 +338,7 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
         tracked.failedAttempts = 0
         stateLock.withLock { runningDevices[tracked.registryID] = device }
 
-        if device.kind == .magicMouse {
-            log.info("Device started: \(describe(tracked)); excluded from gesture recognition")
-        } else {
-            log.info("Device started: \(describe(tracked))")
-        }
+        log.info("Device started: \(describe(tracked))")
     }
 
     private func stopDevice(of tracked: TrackedService) {
@@ -510,8 +506,7 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
     }
 
     /// Heuristic check for determining if this device is a likely trackpad.
-    /// Touch bars are excluded, while trackpads and Magic Mice are included
-    /// (Magic Mice are reported with ``SubsurfaceDevice/Kind/magicMouse``).
+    /// Touch bars are excluded, while trackpads and Magic Mice are included.
     private func isLikelyTrackpad(_ device: SubsurfaceDevice) -> Bool {
         if device.familyID == 105 {
             log.debug("Skipping Touch Bar: \(device.name)")
