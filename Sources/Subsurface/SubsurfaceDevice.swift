@@ -474,11 +474,11 @@ public final class SubsurfaceDevice: @unchecked Sendable {
             return "MacBook Trackpad"
 
         case 105:
-            // Trackpad of the Intel MacBook Pro with Touch Bar, whose Touch Bar isn't a multitouch device
+            // 16" M1 MacBook Pro trackpad
             return "MacBook Trackpad"
 
         case 108:
-            // M1 Macbook Pro Trackpad
+            // 14" M1 MacBook Pro trackpad
             return "MacBook Trackpad"
 
         case 109:
