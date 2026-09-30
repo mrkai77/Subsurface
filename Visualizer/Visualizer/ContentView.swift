@@ -10,7 +10,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var viewModel = ContentViewModel()
-    @State private var showInspector = false
+    @State private var showInspector = true
 
     var body: some View {
         HStack(spacing: 0) {
@@ -18,7 +18,8 @@ struct ContentView: View {
                 touchData: viewModel.touchData,
                 enablePalmRejection: viewModel.enablePalmRejection,
                 showVelocity: viewModel.showVelocity,
-                showContactInfo: viewModel.showContactInfo
+                showContactInfo: viewModel.showContactInfo,
+                isListening: viewModel.isListening
             )
             .aspectRatio(viewModel.aspectRatio, contentMode: .fit)
             .frame(height: 300)

@@ -18,9 +18,9 @@ struct ControlsView: View {
             Section("Subsurface") {
                 HStack {
                     Text("Visualization")
-
+                    
                     Spacer()
-
+                    
                     VStack {
                         if viewModel.isListening {
                             Button("Stop", action: viewModel.stop)
@@ -30,14 +30,15 @@ struct ControlsView: View {
                     }
                 }
                 .disabled(viewModel.trackingMode == .individual && viewModel.selectedDevice == nil)
-
+                
                 Picker("Tracking Mode", selection: $viewModel.trackingMode) {
                     Text("Individual").tag(TrackingMode.individual)
                     Text("Global").tag(TrackingMode.global)
                 }
                 .pickerStyle(.segmented)
                 .disabled(viewModel.isListening)
-
+                
+                
                 if viewModel.trackingMode == .global, let currentDevice = viewModel.currentDevice {
                     HStack {
                         Text("Last device")
@@ -46,14 +47,8 @@ struct ControlsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-
-                Toggle("Show velocity vector", isOn: $viewModel.showVelocity)
-
-                Toggle("Show contact info", isOn: $viewModel.showContactInfo)
-
-                Toggle("Palm rejection", isOn: $viewModel.enablePalmRejection)
             }
-
+            
             if viewModel.trackingMode == .individual {
                 Section {
                     ForEach(Array(viewModel.availableDevicesByID.keys), id: \.self) { deviceKey in
@@ -64,12 +59,12 @@ struct ControlsView: View {
                                     Image(systemName: "checkmark.circle")
                                         .foregroundStyle(.green)
                                 }
-
+                                
                                 Text("\(device.name)")
                                     .foregroundStyle(.secondary)
-
+                                
                                 Spacer()
-
+                                
                                 Button("Select") {
                                     viewModel.selectDevice(device)
                                 }
@@ -79,16 +74,24 @@ struct ControlsView: View {
                     }
                 } header: {
                     HStack {
-                        Text("Device")
-
+                        Text("Selected Device")
+                        
                         Spacer()
-
+                        
                         Button("Reload", action: viewModel.reloadDevices)
                             .buttonStyle(.accessoryBar)
                     }
                     .onAppear(perform: viewModel.reloadDevices)
                 }
                 .disabled(viewModel.isListening)
+            }
+            
+            Section("Options") {
+                Toggle("Show velocity vector", isOn: $viewModel.showVelocity)
+
+                Toggle("Show contact info", isOn: $viewModel.showContactInfo)
+
+                Toggle("Palm rejection", isOn: $viewModel.enablePalmRejection)
             }
 
             Section("Actuation Feedback Patterns") {

@@ -13,6 +13,7 @@ struct VisualizerCanvas: View {
     let enablePalmRejection: Bool
     let showVelocity: Bool
     let showContactInfo: Bool
+    let isListening: Bool
 
     var body: some View {
         Canvas { context, size in
@@ -21,7 +22,7 @@ struct VisualizerCanvas: View {
                 drawTouch(touch, in: context, size: size)
             }
         }
-        .overlay(.tertiary, in: .rect(cornerRadius: 12).stroke(lineWidth: 2))
+        .overlay(.tertiary, in: .rect(cornerRadius: 12).stroke(lineWidth: isListening ? 2 : 0))
         .background(.quinary, in: .rect(cornerRadius: 12))
     }
 
