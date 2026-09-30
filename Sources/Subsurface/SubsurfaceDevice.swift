@@ -50,9 +50,12 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         /// Anything else, including the Touch Bar and unknown family IDs (which may be newer trackpads)
         case other
 
-        init(familyID: Int?) {
+        init(familyID: Int?, isBuiltIn: Bool) {
             switch familyID {
-            case 98, 99, 100, 101, 102, 103, 104, 108, 109, 128, 129, 130:
+            case 98, 99, 100, 101, 102, 103, 104, 105, 108, 109, 128, 129, 130:
+                self = .trackpad
+            // The built-in trackpad of the Apple silicon MacBook Pro with Touch Bar reports 113, like a Magic Mouse
+            case 113 where isBuiltIn:
                 self = .trackpad
             case 112, 113:
                 self = .magicMouse
@@ -73,11 +76,12 @@ public final class SubsurfaceDevice: @unchecked Sendable {
     private init(deviceRef: MTDeviceRef) {
         self.deviceRef = deviceRef
 
+        let isBuiltIn = MTDeviceIsBuiltIn?(deviceRef) ?? false
         var familyID: Int32 = 0
         if let MTDeviceGetFamilyID, MTDeviceGetFamilyID(deviceRef, &familyID) == noErr {
-            self.kind = Kind(familyID: Int(familyID))
+            self.kind = Kind(familyID: Int(familyID), isBuiltIn: isBuiltIn)
         } else {
-            self.kind = Kind(familyID: nil)
+            self.kind = Kind(familyID: nil, isBuiltIn: isBuiltIn)
         }
 
         var deviceID: UInt64 = 0
@@ -470,8 +474,8 @@ public final class SubsurfaceDevice: @unchecked Sendable {
             return "MacBook Trackpad"
 
         case 105:
-            // MacBook with Touch Bar
-            return "Touch Bar"
+            // Trackpad of the Intel MacBook Pro with Touch Bar, whose Touch Bar isn't a multitouch device
+            return "MacBook Trackpad"
 
         case 108:
             // M1 Macbook Pro Trackpad
@@ -482,12 +486,16 @@ public final class SubsurfaceDevice: @unchecked Sendable {
             return "MacBook Trackpad"
 
         case 112, 113:
-            // Magic Mouse & Magic Mouse 2/3
-            return "Magic Mouse"
+            // Magic Mouse & Magic Mouse 2/3, or the Apple silicon MacBook Pro with Touch Bar's trackpad
+            return kind == .trackpad ? "MacBook Trackpad" : "Magic Mouse"
 
         case 128, 129, 130:
             // Magic Trackpad, Magic Trackpad 2, Magic Trackpad 3
             return "Magic Trackpad"
+
+        case 176:
+            // Touch Bar of the Apple silicon MacBook Pro
+            return "Touch Bar"
 
         default:
             let familyString = familyID.map(String.init) ?? "nil"

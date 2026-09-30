@@ -508,7 +508,7 @@ public final class SubsurfaceMonitor: @unchecked Sendable {
     /// Heuristic check for determining if this device is a likely trackpad.
     /// Touch bars are excluded, while trackpads and Magic Mice are included.
     private func isLikelyTrackpad(_ device: SubsurfaceDevice) -> Bool {
-        if device.familyID == 105 {
+        if device.familyID == 176 {
             log.debug("Skipping Touch Bar: \(device.name)")
             return false
         }
