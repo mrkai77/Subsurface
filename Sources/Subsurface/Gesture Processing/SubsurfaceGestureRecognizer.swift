@@ -185,7 +185,8 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
             // Wakes the timer when a deadline is armed while it is idle
             let (timerWakeups, timerWakeupContinuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
 
-            let timerTask = Task { [weak self] in
+            // Don't inherit a low caller priority, which throttles recognition when the system is busy
+            let timerTask = Task(priority: .userInitiated) { [weak self] in
                 var wakeups = timerWakeups.makeAsyncIterator()
                 while !Task.isCancelled {
                     guard let self else { return }
@@ -202,7 +203,7 @@ public final class SubsurfaceGestureRecognizer: @unchecked Sendable {
                 }
             }
 
-            let task = Task { [weak self] in
+            let task = Task(priority: .userInitiated) { [weak self] in
                 for await element in frames {
                     guard let self, !Task.isCancelled else { break }
                     let (source, contacts) = frame(element)
