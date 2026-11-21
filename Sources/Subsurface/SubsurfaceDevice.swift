@@ -47,18 +47,44 @@ public final class SubsurfaceDevice: @unchecked Sendable {
         case trackpad
         /// A Magic Mouse (family 112/113)
         case magicMouse
+        /// A built-in touchscreen, such as the 14" PROLED M5 MacBook Pro's display
+        ///
+        /// Touchscreens enumerate as multitouch devices and start normally, but deliver no contact,
+        /// path or image frames. MultitouchSupport doesn't process their touches: they report a
+        /// placeholder 1×1 sensor grid and hand processing to a separate sensing framework
+        /// (`SensingAlgsKiwi_AP` on the PROLED M5 MacBook Pro), which emits HID touchscreen events instead.
+        case touchscreen
         /// Anything else, including the Touch Bar and unknown family IDs (which may be newer trackpads)
         case other
 
+        /// Magic Trackpad, Magic Trackpad 2, Magic Trackpad 3
+        static let magicTrackpadFamilies: Set<Int> = [128, 129, 130]
+
         init(familyID: Int?, isBuiltIn: Bool) {
             switch familyID {
-            case 98, 99, 100, 101, 102, 103, 104, 105, 108, 109, 128, 129, 130:
+            // Built-in trackpads:
+            // 98, 99, 100: older MacBooks
+            // 101: Retina MacBook Pro
+            // 102: Retina MacBook with Force Touch trackpad (2015)
+            // 103: Retina MacBook Pro 13" with Force Touch trackpad (2015)
+            // 104: MacBook variant
+            // 105: Intel MacBook Pro with Touch Bar
+            // 108: 14" M1 MacBook Pro
+            // 109: M4 MacBook Pro
+            // 137: 14" M5 PROLED MacBook Pro
+            case 98, 99, 100, 101, 102, 103, 104, 105, 108, 109, 137:
+                self = .trackpad
+            case let familyID? where Self.magicTrackpadFamilies.contains(familyID):
                 self = .trackpad
             // The built-in trackpad of the Apple silicon MacBook Pro with Touch Bar reports 113, like a Magic Mouse
             case 113 where isBuiltIn:
                 self = .trackpad
             case 112, 113:
                 self = .magicMouse
+            // Touchscreen of the 14" PROLED M5 MacBook Pro (product "Kiwi"). Its touches don't come
+            // through MultitouchSupport; see `touchscreen`
+            case 2 where isBuiltIn:
+                self = .touchscreen
             default:
                 self = .other
             }
@@ -66,9 +92,10 @@ public final class SubsurfaceDevice: @unchecked Sendable {
 
         public var description: String {
             switch self {
-            case .trackpad: "trackpad"
+            case .trackpad: "Trackpad"
             case .magicMouse: "Magic Mouse"
-            case .other: "other"
+            case .touchscreen: "Touchscreen"
+            case .other: "Other"
             }
         }
     }
@@ -452,47 +479,18 @@ public final class SubsurfaceDevice: @unchecked Sendable {
 
     /// Thanks  to https://github.com/KrishKrosh/OpenMultitouchSupport
     public var name: String {
+        switch kind {
+        case .magicMouse:
+            return "Magic Mouse"
+        case .trackpad:
+            return Kind.magicTrackpadFamilies.contains(familyID ?? 0) ? "Magic Trackpad" : "MacBook Trackpad"
+        case .touchscreen:
+            return "MacBook Pro Display"
+        case .other:
+            break
+        }
+
         switch familyID {
-        case 98, 99, 100:
-            // Built-in trackpad (older models)
-            return "MacBook Trackpad"
-
-        case 101:
-            // Retina MacBook Pro trackpad
-            return "MacBook Trackpad"
-
-        case 102:
-            // Retina MacBook with Force Touch trackpad (2015)
-            return "MacBook Trackpad"
-
-        case 103:
-            // Retina MacBook Pro 13" with Force Touch trackpad (2015)
-            return "MacBook Trackpad"
-
-        case 104:
-            // MacBook trackpad variant
-            return "MacBook Trackpad"
-
-        case 105:
-            // 16" M1 MacBook Pro trackpad
-            return "MacBook Trackpad"
-
-        case 108:
-            // 14" M1 MacBook Pro trackpad
-            return "MacBook Trackpad"
-
-        case 109:
-            // M4 Macbook Pro Trackpad
-            return "MacBook Trackpad"
-
-        case 112, 113:
-            // Magic Mouse & Magic Mouse 2/3, or the Apple silicon MacBook Pro with Touch Bar's trackpad
-            return kind == .trackpad ? "MacBook Trackpad" : "Magic Mouse"
-
-        case 128, 129, 130:
-            // Magic Trackpad, Magic Trackpad 2, Magic Trackpad 3
-            return "Magic Trackpad"
-
         case 176:
             // Touch Bar of the Apple silicon MacBook Pro
             return "Touch Bar"

@@ -98,10 +98,7 @@ final class ContentViewModel {
 
                 if currentDevice?.deviceID != device.deviceID {
                     currentDevice = device
-
-                    if let dimensions = device.sensorDimensions {
-                        aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
-                    }
+                    updateAspectRatio(for: device)
                 }
             }
         }
@@ -129,10 +126,15 @@ final class ContentViewModel {
 
     func selectDevice(_ device: SubsurfaceDevice) {
         selectedDevice = device
+        updateAspectRatio(for: device)
+    }
 
-        if let dimensions = device.sensorDimensions {
-            aspectRatio = CGFloat(dimensions.columns) / CGFloat(dimensions.rows)
-        }
+    /// Matches the canvas to the device's physical surface. The sensor grid isn't used,
+    /// since devices like the touchscreen report a 1×1 grid.
+    private func updateAspectRatio(for device: SubsurfaceDevice) {
+        guard let dimensions = device.sensorSurfaceDimensions,
+              dimensions.width > 0, dimensions.height > 0 else { return }
+        aspectRatio = CGFloat(dimensions.width) / CGFloat(dimensions.height)
     }
 
     func runActuation(pattern: MTFeedbackPattern) {
